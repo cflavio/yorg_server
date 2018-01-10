@@ -1,0 +1,4 @@
+*.geany
+*.log
+logs/
+supporters.db
