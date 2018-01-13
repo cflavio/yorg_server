@@ -50,29 +50,29 @@ class YorgServer(sleekxmpp.ClientXMPP):
         #self.add_event_handler("presence_unavailable", self.on_presence_unavailable)
 
     def is_supporter(self, name):
-        return name in self.supp_mgr.supporters()
+        return JID(name).bare in self.supp_mgr.supporters()
 
     def start(self, event):
         self.supp_mgr = SupporterMgr()
         fake_users_names = [
-            'user1@domain1.tld',
-            'user2@longdomainname1.tld',
-            'user3@domain1.tld',
-            'user4longname@domain1.tld',
-            'user5@domain1.tld',
-            'user6@domain2.tld',
-            'user7@domain2.tld',
-            'user8@domain2.tld',
-            'user9@domain2.tld',
-            'user10longname@longdomainname2.tld',
-            'user11@domain2.tld',
-            'user12@domain2.tld',
-            'user13@domain2.tld',
-            'user14@longdomainname2.tld',
-            'user15@domain2.tld',
+            'guser1@domain1.tld',
+            'duser2@longdomainname1.tld',
+            'yuser3@domain1.tld',
+            'euser4longname@domain1.tld',
+            'tuser5@domain1.tld',
+            'guser6@domain2.tld',
+            'huser7@domain2.tld',
+            'vser8@domain2.tld',
+            'wuser9@domain2.tld',
+            'quser10longname@longdomainname2.tld',
+            'suser11@domain2.tld',
+            'cuser12@domain2.tld',
+            'guser13@domain2.tld',
+            'auser14@longdomainname2.tld',
+            'xuser15@domain2.tld',
             'user16@domain3.tld',
-            'user17@domain3.tld',
-            'user18@domain3.tld']
+            'buser17@domain3.tld',
+            'yuser18@domain3.tld']
         #fake_users_names = []  # uncomment this so don't use fake names
         self.fake_users = [
             User(usr_name, self.is_supporter(usr_name)) for usr_name in fake_users_names]
