@@ -73,67 +73,32 @@ class YorgServer(sleekxmpp.ClientXMPP):
             'user16@domain3.tld',
             'buser17@domain3.tld',
             'yuser18@domain3.tld']
-        #fake_users_names = []  # uncomment this so don't use fake names
+        fake_users_names = []  # uncomment this so don't use fake names
         self.fake_users = [
             User(usr_name, self.is_supporter(usr_name)) for usr_name in fake_users_names]
         self.send_presence()
         self.get_roster()
 
     def on_presence_available(self, msg):
-        self.on_connected(msg)
-
-    def on_presence_unavailable(self, msg):
-        self.on_disconnected(msg)
-
-    def on_connected(self, msg):
+        if msg['from'].bare == self.boundjid.bare: return
         supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
         usr_name = str(msg['from'])
-        self.users += [User(usr_name, self.is_supporter(usr_name))]
-        for user in self.users:
-            if JID(str(user.name)).bare != JID(str(msg['from'])).bare:
-                self.send_message(
-                    mfrom='ya2_yorg@jabb3r.org',
-                    mto=user.name,
-                    mtype='ya2_yorg',
-                    msubject='user_connected',
-                    mbody=supp_pref(msg['from'].full) + msg['from'].full)
+        if usr_name not in [usr.name for usr in self.users]:
+            self.users += [User(usr_name, self.is_supporter(usr_name))]
 
-    def on_disconnected(self, msg):
+    def on_presence_unavailable(self, msg):
         usr_name = str(msg['from'])
         for user in self.users[:]:
-            if JID(str(user.name)).bare != JID(str(msg['from'])).bare:
-                self.send_message(
-                    mfrom='ya2_yorg@jabb3r.org',
-                    mto=user.name,
-                    mtype='ya2_yorg',
-                    msubject='user_disconnected',
-                    mbody=msg['from'].full)
-            else:
+            if JID(str(user.name)).bare == JID(str(msg['from'])).bare:
                 self.users.remove(user)
-
-    def on_keep_alive(self, msg):
-        for user in self.users:
-            if str(user.name) == str(msg['from']):
-                user.last_seen = globalClock.get_frame_time()
-
-    def maintain(self, task):
-        for user in self.users[:]:
-            if globalClock.get_frame_time() - user.last_seen > 15:
-                print 'removing user', user.name
-                self.users.remove(user)
-                self.on_disconnected({'from': JID(user.name)})
-        return task.again
 
     def on_list_users(self, msg):
         supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
         fake_names = [usr.name for usr in self.fake_users]
         supp_names = [supp_pref(name) + name for name in self.user_names() + fake_names]
-        to_remove = []
-        for user in self.user_names():
-            if JID(user).bare == JID(msg['from']).bare: to_remove += [user]
-        map(self.remove_user, to_remove)
         usr_name = str(msg['from'])
-        self.users += [User(usr_name, self.is_supporter(usr_name))]
+        if usr_name not in [usr.name for usr in self.users]:
+            self.users += [User(usr_name, self.is_supporter(usr_name))]
         self.send_message(
             mfrom='ya2_yorg@jabb3r.org',
             mto=msg['from'],
@@ -141,16 +106,20 @@ class YorgServer(sleekxmpp.ClientXMPP):
             msubject='list_users',
             mbody='\n'.join(supp_names))
 
+    def on_query_full(self, msg):
+        self.send_message(
+            mfrom=self.boundjid.full,
+            mto=msg['from'],
+            mtype='ya2_yorg',
+            msubject='answer_full',
+            mbody=self.boundjid.full)
+
     def on_message(self, msg):
         logging.info('MESSAGE: ' + str(msg))
         if msg['subject'] == 'list_users':
             self.on_list_users(msg)
-        if msg['subject'] == 'connected':
-            self.on_connected(msg)
-        if msg['subject'] == 'disconnected':
-            self.on_disconnected(msg)
-        if msg['subject'] == 'keep_alive':
-            self.on_keep_alive(msg)
+        if msg['subject'] == 'query_full':
+            self.on_query_full(msg)
 
     def remove_user(self, usr_name):
         for usr in self.users[:]:
@@ -182,5 +151,4 @@ xmpp.register_plugin('xep_0199') # XMPP Ping
 if xmpp.connect():
     xmpp.process(block=False)
 
-taskMgr.doMethodLater(5.0, xmpp.maintain, 'maintain')
 base.run()
