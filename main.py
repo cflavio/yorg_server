@@ -46,8 +46,8 @@ class YorgServer(sleekxmpp.ClientXMPP):
         self.users = []
         self.add_event_handler("session_start", self.start)
         self.add_event_handler("message", self.on_message)
-        #self.add_event_handler("presence_available", self.on_presence_available)
-        #self.add_event_handler("presence_unavailable", self.on_presence_unavailable)
+        self.add_event_handler("presence_available", self.on_presence_available)
+        self.add_event_handler("presence_unavailable", self.on_presence_unavailable)
 
     def is_supporter(self, name):
         return JID(name).bare in self.supp_mgr.supporters()
@@ -78,6 +78,12 @@ class YorgServer(sleekxmpp.ClientXMPP):
             User(usr_name, self.is_supporter(usr_name)) for usr_name in fake_users_names]
         self.send_presence()
         self.get_roster()
+
+    def on_presence_available(self, msg):
+        self.on_connected(msg)
+
+    def on_presence_unavailable(self, msg):
+        self.on_disconnected(msg)
 
     def on_connected(self, msg):
         supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
