@@ -33,9 +33,10 @@ class SupporterMgr(object):
 
 class User(object):
 
-    def __init__(self, name, is_supporter):
+    def __init__(self, name, is_supporter, is_playing):
         self.name = name
         self.is_supporter = is_supporter
+        self.is_playing = is_playing
         self.last_seen = globalClock.get_frame_time()
 
 
@@ -51,6 +52,11 @@ class YorgServer(sleekxmpp.ClientXMPP):
 
     def is_supporter(self, name):
         return JID(name).bare in self.supp_mgr.supporters()
+
+    def is_playing(self, name):
+        for usr in self.users:
+            if usr.name == JID(name).bare:
+                return usr.is_playing
 
     def start(self, event):
         self.supp_mgr = SupporterMgr()
@@ -84,7 +90,7 @@ class YorgServer(sleekxmpp.ClientXMPP):
         supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
         usr_name = str(msg['from'])
         if usr_name not in [usr.name for usr in self.users]:
-            self.users += [User(usr_name, self.is_supporter(usr_name))]
+            self.users += [User(usr_name, self.is_supporter(usr_name), self.is_playing(usr_name))]
 
     def on_presence_unavailable(self, msg):
         usr_name = str(msg['from'])
@@ -94,17 +100,23 @@ class YorgServer(sleekxmpp.ClientXMPP):
 
     def on_list_users(self, msg):
         supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
+        play_pref = lambda name: '1' if self.is_playing(name) else '0'
         fake_names = [usr.name for usr in self.fake_users]
-        supp_names = [supp_pref(name) + name for name in self.user_names() + fake_names]
+        supp_names = [supp_pref(name) + play_pref(name) + name for name in self.user_names() + fake_names]
         usr_name = str(msg['from'])
         if usr_name not in [usr.name for usr in self.users]:
-            self.users += [User(usr_name, self.is_supporter(usr_name))]
+            self.users += [User(usr_name, self.is_supporter(usr_name), self.is_playing(usr_name))]
         self.send_message(
             mfrom='ya2_yorg@jabb3r.org',
             mto=msg['from'],
             mtype='ya2_yorg',
             msubject='list_users',
             mbody='\n'.join(supp_names))
+
+    def on_is_playing(self, msg):
+        for usr in self.users:
+            if usr.name == str(JID(msg['from'])):
+                usr.is_playing = int(msg['body'])
 
     def on_query_full(self, msg):
         self.send_message(
@@ -120,6 +132,8 @@ class YorgServer(sleekxmpp.ClientXMPP):
             self.on_list_users(msg)
         if msg['subject'] == 'query_full':
             self.on_query_full(msg)
+        if msg['subject'] == 'is_playing':
+            self.on_is_playing(msg)
 
     def remove_user(self, usr_name):
         for usr in self.users[:]:
