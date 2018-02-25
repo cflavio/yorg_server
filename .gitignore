@@ -1,5 +1,6 @@
 *.geany
 *.log
+*.pyc
 logs/
 supporters.db
 built/

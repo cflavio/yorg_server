@@ -2,33 +2,22 @@ from panda3d.core import loadPrcFileData
 loadPrcFileData('', 'window-type none')
 loadPrcFileData('', 'audio-library-name null')
 import sys
-import argparse
-import sqlite3
 from os.path import exists
 from os import mkdir
-import logging
+from string import letters
+from argparse import ArgumentParser
+from logging import basicConfig, DEBUG, getLogger, info
 from logging.handlers import TimedRotatingFileHandler
-import sleekxmpp
+from random import choice, randint
+from sleekxmpp import ClientXMPP
 from sleekxmpp.jid import JID
+from supporters import SupporterMgr
 import direct.directbase.DirectStart
 
 
 if sys.version_info < (3, 0):
     reload(sys)
     sys.setdefaultencoding('utf8')
-else:
-    raw_input = input
-
-
-class SupporterMgr(object):
-
-    def __init__(self):
-        self.conn = sqlite3.connect('supporters.db')
-        self.cur = self.conn.cursor()
-
-    def supporters(self):
-        self.cur.execute('SELECT * from supporters')
-        return [elm[0] for elm in self.cur.fetchall()]
 
 
 class User(object):
@@ -40,83 +29,63 @@ class User(object):
         self.last_seen = globalClock.get_frame_time()
 
 
-class YorgServer(sleekxmpp.ClientXMPP):
+class YorgServer(ClientXMPP):
 
-    def __init__(self, jid, password):
-        sleekxmpp.ClientXMPP.__init__(self, jid, password)
-        self.users = []
-        self.add_event_handler("session_start", self.start)
-        self.add_event_handler("message", self.on_message)
-        self.add_event_handler("presence_available", self.on_presence_available)
-        self.add_event_handler("presence_unavailable", self.on_presence_unavailable)
-
-    def is_supporter(self, name):
-        return JID(name).bare in self.supp_mgr.supporters()
-
-    def is_playing(self, name):
-        for usr in self.users:
-            if usr.name == JID(name).bare:
-                return usr.is_playing
-
-    def start(self, event):
-        self.supp_mgr = SupporterMgr()
-        fake_users_names = [
-            'guser1@domain1.tld',
-            'duser2@longdomainname1.tld',
-            'yuser3@domain1.tld',
-            'euser4longname@domain1.tld',
-            'tuser5@domain1.tld',
-            'guser6@domain2.tld',
-            'huser7@domain2.tld',
-            'vser8@domain2.tld',
-            'wuser9@domain2.tld',
-            'quser10longname@longdomainname2.tld',
-            'suser11@domain2.tld',
-            'cuser12@domain2.tld',
-            'guser13@domain2.tld',
-            'auser14@longdomainname2.tld',
-            'xuser15@domain2.tld',
-            'user16@domain3.tld',
-            'buser17@domain3.tld',
-            'yuser18@domain3.tld']
+    def __init__(self, jid, pwd):
+        ClientXMPP.__init__(self, jid, pwd)
+        self.jid2usr = {}
+        self.fake_users = []
+        self.supp_mgr = None
+        evt_info = [
+            ('session_start', self.start),
+            ('message', self.on_message),
+            ('presence_available', self.on_presence_available),
+            ('presence_unavailable', self.on_presence_unavailable)]
+        map(lambda args: self.add_event_handler(*args), evt_info)
+        rnd_char = lambda: choice(letters)
+        rnd_name = lambda: ''.join([rnd_char() for _ in range(randint(3, 12))])
+        rnd_id = lambda: '%s@%s.%s' % (rnd_name(), rnd_name(), rnd_name())
+        fake_users_names = [rnd_id() for _ in range(randint(30, 50))]
         fake_users_names = []  # uncomment this so don't use fake names
         self.fake_users = [
-            User(usr_name, self.is_supporter(usr_name)) for usr_name in fake_users_names]
+            User(name, self.is_supporter(name), self.is_playing(name))
+            for name in fake_users_names]
+
+    def start(self, xmpp_evt):
+        self.supp_mgr = SupporterMgr()  # we must create it in xmpp's thread
         self.send_presence()
         self.get_roster()
 
     def on_presence_available(self, msg):
         if msg['from'].bare == self.boundjid.bare: return
-        supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
-        usr_name = str(msg['from'])
-        if usr_name not in [usr.name for usr in self.users]:
-            self.users += [User(usr_name, self.is_supporter(usr_name), self.is_playing(usr_name))]
+        name = msg['from']
+        if name in self.jid2usr: return
+        usr = User(name, self.is_supporter(name), self.is_playing(name))
+        self.jid2usr[name] = usr
 
-    def on_presence_unavailable(self, msg):
-        usr_name = str(msg['from'])
-        for user in self.users[:]:
-            if JID(str(user.name)).bare == JID(str(msg['from'])).bare:
-                self.users.remove(user)
+    def on_presence_unavailable(self, msg): del self.jid2usr[msg['from']]
 
     def on_list_users(self, msg):
         supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
         play_pref = lambda name: '1' if self.is_playing(name) else '0'
         fake_names = [usr.name for usr in self.fake_users]
-        supp_names = [supp_pref(name) + play_pref(name) + name for name in self.user_names() + fake_names]
-        usr_name = str(msg['from'])
-        if usr_name not in [usr.name for usr in self.users]:
-            self.users += [User(usr_name, self.is_supporter(usr_name), self.is_playing(usr_name))]
+        names = self.jid2usr.keys() + fake_names
+        names = [
+            ''.join([supp_pref(name) + play_pref(name) + str(name)])
+            for name in names]
+        _from = str(msg['from'])
+        if _from not in self.jid2usr:
+            usr = User(_from, self.is_supporter(_from), self.is_playing(_from))
+            self.jid2usr[_from] = usr
         self.send_message(
             mfrom='ya2_yorg@jabb3r.org',
             mto=msg['from'],
             mtype='ya2_yorg',
             msubject='list_users',
-            mbody='\n'.join(supp_names))
+            mbody='\n'.join(names))
 
     def on_is_playing(self, msg):
-        for usr in self.users:
-            if usr.name == str(JID(msg['from'])):
-                usr.is_playing = int(msg['body'])
+        self.jid2usr[msg['from']].is_playing = int(msg['body'])
 
     def on_query_full(self, msg):
         self.send_message(
@@ -127,42 +96,32 @@ class YorgServer(sleekxmpp.ClientXMPP):
             mbody=self.boundjid.full)
 
     def on_message(self, msg):
-        logging.info('MESSAGE: ' + str(msg))
-        if msg['subject'] == 'list_users':
-            self.on_list_users(msg)
-        if msg['subject'] == 'query_full':
-            self.on_query_full(msg)
-        if msg['subject'] == 'is_playing':
-            self.on_is_playing(msg)
+        info('MESSAGE: ' + str(msg))
+        msg2cb = {
+            'list_users': self.on_list_users,
+            'query_full': self.on_query_full,
+            'is_playing': self.on_is_playing,
+            'answer_full': lambda: None}
+        msg2cb[msg['subject']](msg)
 
-    def remove_user(self, usr_name):
-        for usr in self.users[:]:
-            if usr.name == usr_name: self.users.remove(usr)
+    def is_supporter(self, name): return JID(name).bare in self.supp_mgr.list()
 
-    def user_names(self):
-        return [usr.name for usr in self.users]
+    def is_playing(self, name):
+        return any(usr.is_playing for jid, usr in self.jid2usr.items()
+                   if JID(name).bare == JID(jid).bare)
 
 if not exists('logs'): mkdir('logs')
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(levelname)-8s %(message)s')
-
-handler = TimedRotatingFileHandler('logs/yorg_server.log', when='midnight',
-                                   interval=1)
+basicConfig(level=DEBUG, format='%(levelname)-8s %(message)s')
+handler = TimedRotatingFileHandler('logs/yorg_server.log', 'midnight')
 handler.suffix = '%Y%m%d'
-logging.getLogger().addHandler(handler)
+getLogger().addHandler(handler)
 
-parser = argparse.ArgumentParser()
-parser.add_argument('user')
-parser.add_argument('pwd')
+parser = ArgumentParser()
+map(parser.add_argument, ['usr', 'pwd'])
 args = parser.parse_args()
 
-xmpp = YorgServer(args.user, args.pwd)
-xmpp.register_plugin('xep_0030') # Service Discovery
-xmpp.register_plugin('xep_0004') # Data Forms
-xmpp.register_plugin('xep_0060') # PubSub
-xmpp.register_plugin('xep_0199') # XMPP Ping
-
-if xmpp.connect():
-    xmpp.process(block=False)
-
+yorg_srv = YorgServer(args.usr, args.pwd)
+plugins = [30, 4, 60, 199]  # service disco, data forms, pubsub, ping
+map(yorg_srv.register_plugin, ['xep_' + '%04d' % plg for plg in plugins])
+if yorg_srv.connect(): yorg_srv.process(block=False)
 base.run()
