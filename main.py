@@ -101,7 +101,7 @@ class YorgServer(ClientXMPP):
             'list_users': self.on_list_users,
             'query_full': self.on_query_full,
             'is_playing': self.on_is_playing,
-            'answer_full': lambda: None}
+            'answer_full': lambda msg: None}
         msg2cb[msg['subject']](msg)
 
     def is_supporter(self, name): return JID(name).bare in self.supp_mgr.list()
