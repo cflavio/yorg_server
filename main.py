@@ -35,6 +35,7 @@ class YorgServer(ClientXMPP):
         ClientXMPP.__init__(self, jid, pwd)
         self.jid2usr = {}
         self.fake_users = []
+        self.registered = []
         self.supp_mgr = None
         evt_info = [
             ('session_start', self.start),
@@ -51,10 +52,18 @@ class YorgServer(ClientXMPP):
             User(name, self.is_supporter(name), self.is_playing(name))
             for name in fake_users_names]
 
+    def register(self, msg): self.registered += [msg]
+
+    def unregister(self, msg): self.registered.remove(msg)
+
+    def is_registered(self, msg): return msg in self.registered
+
     def start(self, xmpp_evt):
         self.supp_mgr = SupporterMgr()  # we must create it in xmpp's thread
         self.send_presence()
         self.get_roster()
+        messages = ['list_users', 'query_full', 'is_playing', 'answer_full']
+        map(self.register, messages)
 
     def on_presence_available(self, msg):
         if msg['from'].bare == self.boundjid.bare: return
