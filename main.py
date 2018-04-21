@@ -66,13 +66,21 @@ class YorgServer(ClientXMPP):
         map(self.register, messages)
 
     def on_presence_available(self, msg):
+        info('presence available before: %s %s' % (msg['from'], self.jid2usr.keys()))
         if msg['from'].bare == self.boundjid.bare: return
         name = msg['from']
+        for key in self.jid2usr.keys()[:]:
+            if msg['from'].bare == JID(key).bare and str(msg['from']) != str(key):
+                del self.jid2usr[key]
         if name in self.jid2usr: return
         usr = User(name, self.is_supporter(name), self.is_playing(name))
         self.jid2usr[name] = usr
+        info('presence available after: %s' % self.jid2usr.keys())
 
-    def on_presence_unavailable(self, msg): del self.jid2usr[msg['from']]
+    def on_presence_unavailable(self, msg):
+        info('presence unavailable before: %s' % self.jid2usr.keys())
+        del self.jid2usr[msg['from']]
+        info('presence unavailable after: %s' % self.jid2usr.keys())
 
     def on_list_users(self, msg):
         supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
