@@ -12,7 +12,9 @@ from random import choice, randint
 from sleekxmpp import ClientXMPP
 from sleekxmpp.jid import JID
 from supporters import SupporterMgr
-import direct.directbase.DirectStart
+from yyagl.game import Game, GameLogic
+from yyagl.engine.configuration import Cfg, GuiCfg, ProfilingCfg, LangCfg, \
+    CursorCfg, DevCfg
 
 
 if sys.version_info < (3, 0):
@@ -29,7 +31,7 @@ class User(object):
         self.last_seen = globalClock.get_frame_time()
 
 
-class YorgServer(ClientXMPP):
+class YorgServerXMPP(ClientXMPP):
 
     def __init__(self, jid, pwd):
         ClientXMPP.__init__(self, jid, pwd)
@@ -133,12 +135,36 @@ handler = TimedRotatingFileHandler('logs/yorg_server.log', 'midnight')
 handler.suffix = '%Y%m%d'
 getLogger().addHandler(handler)
 
-parser = ArgumentParser()
-map(parser.add_argument, ['usr', 'pwd'])
-args = parser.parse_args()
 
-yorg_srv = YorgServer(args.usr, args.pwd)
-plugins = [30, 4, 60, 199]  # service disco, data forms, pubsub, ping
-map(yorg_srv.register_plugin, ['xep_' + '%04d' % plg for plg in plugins])
-if yorg_srv.connect(): yorg_srv.process(block=False)
-base.run()
+class YorgServerLogic(GameLogic):
+
+    def __init__(self, mediator, usr, pwd):
+        GameLogic.__init__(self, mediator)
+        self.yorg_srv = YorgServerXMPP(usr, pwd)
+        plugins = [30, 4, 60, 199]  # service disco, data forms, pubsub, ping
+        map(self.yorg_srv.register_plugin, ['xep_' + '%04d' % plg for plg in plugins])
+
+    def on_start(self):
+        GameLogic.on_start(self)
+        if self.yorg_srv.connect(): self.yorg_srv.process(block=False)
+        self.eng.server.start(self.process_msg_srv, self.process_connection)
+
+    def process_msg_srv(self, data_lst, sender):
+        print data_lst, sender
+
+    def process_connection(self, client_address):
+        print 'connection from ' + client_address
+
+
+class YorgServer(Game):
+
+    def __init__(self):
+        parser = ArgumentParser()
+        map(parser.add_argument, ['usr', 'pwd'])
+        args = parser.parse_args()
+        init_lst = [[('logic', YorgServerLogic, [self, args.usr, args.pwd])]]
+        conf = Cfg(GuiCfg(), ProfilingCfg(), LangCfg(), CursorCfg(), DevCfg())
+        Game.__init__(self, init_lst, conf)
+
+
+YorgServer().run()
