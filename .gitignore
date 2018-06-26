@@ -2,6 +2,7 @@
 *.log
 *.pyc
 logs/
+yorg.db
 supporters.db
 built/
 .sconsign.dblite
