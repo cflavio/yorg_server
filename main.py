@@ -4,7 +4,8 @@ loadPrcFileData('', 'audio-library-name null')
 import sys
 from os.path import exists
 from os import mkdir
-from string import letters
+from string import ascii_letters, digits
+from re import match
 from argparse import ArgumentParser
 from logging import basicConfig, DEBUG, getLogger, info
 from logging.handlers import TimedRotatingFileHandler
@@ -42,6 +43,39 @@ class YorgServerLogic(GameLogic):
     def on_start(self):
         GameLogic.on_start(self)
         self.eng.server.start(self.process_msg_srv, self.process_connection)
+        self.eng.server.register_rpc(self.register)
+        self.eng.server.register_rpc(self.get_salt)
+
+    def register(self, uid, pwd, salt, email, sender):
+        if not self.valid_nick(uid): return 'invalid_nick'
+        if not self.valid_email(email): return 'invalid_email'
+        if uid in self.users(): return 'already_used_nick'
+        if email in self.emails(): return 'already_used_email'
+        self.db.add(uid, pwd, salt, email)
+        return 'ok'
+
+    def get_salt(self, uid, sender):
+        users_id = [usr for usr in self.users() if usr[0] == uid]
+        if users_id: return users_id[0][2]
+        return ''.join(choice(ascii_letters + digits) for i in range(8))
+
+    def valid_nick(self, nick):
+        return all(char in ascii_letters + digits for char in nick)
+
+    def valid_email(self, email):
+        return match(r'[^@]+@[^@]+\.[^@]+', email)
+
+    def users(self):
+        users = self.db.list()
+        _users = []
+        if users: _users = [usr[0] for usr in users]
+        return _users
+
+    def emails(self):
+        users = self.db.list()
+        emails = []
+        if users: emails = [usr[3] for usr in users]
+        return emails
 
     def process_msg_srv(self, data_lst, sender):
         print data_lst, sender
@@ -94,8 +128,12 @@ class YorgServerLogic(GameLogic):
 class YorgServer(Game):
 
     def __init__(self):
+        parser = ArgumentParser()
+        parser.add_argument('--port', type=int, default=0)
+        args = parser.parse_args()
+        dev_cfg = DevCfg(port=args.port) if args.port else DevCfg()
         init_lst = [[('logic', YorgServerLogic, [self])]]
-        conf = Cfg(GuiCfg(), ProfilingCfg(), LangCfg(), CursorCfg(), DevCfg())
+        conf = Cfg(GuiCfg(), ProfilingCfg(), LangCfg(), CursorCfg(), dev_cfg)
         Game.__init__(self, init_lst, conf)
 
 
