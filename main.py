@@ -6,6 +6,9 @@ from os.path import exists
 from os import mkdir
 from string import ascii_letters, digits
 from re import match
+from smtplib import SMTP
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
 from argparse import ArgumentParser
 from logging import basicConfig, DEBUG, getLogger, info
 from logging.handlers import TimedRotatingFileHandler
@@ -32,6 +35,46 @@ handler.suffix = '%Y%m%d'
 getLogger().addHandler(handler)
 
 
+mail_content = \
+    'Hi! Thank you for subscribing Yorg!\n\nIn order to activate your ' + \
+    'account, you have to click the following link:\n\n' + \
+    'http://yorg.ya2tech.it/activate.html?uid={uid}&activation_code={activation_code}' + \
+    '\n\nAfter that, you can login to your account. Thank you so much!\n\n' + \
+    "Yorg's team"
+
+
+class MailSender(object):
+
+    def __init__(self):
+        self.server = None
+        self.connect()
+
+    def connect(self):
+        self.server = SMTP('mail.ya2.it', 2525)
+        self.server.starttls()
+        with open('pwd.txt') as f: pwd = f.read().strip()
+        self.server.login('noreply@ya2.it', pwd)
+
+    def send_mail(self, uid, email, activation_code):
+        if not self.is_connected(): self.connect()
+        msg = MIMEMultipart()
+        msg['From'] = 'noreply@ya2.it'
+        msg['To'] = email
+        msg['Subject'] = 'Yorg: activation of the user ' + uid
+        body = mail_content.format(uid=uid, activation_code=activation_code)
+        msg.attach(MIMEText(body, 'plain'))
+        self.server.sendmail('noreply@ya2.it', email, msg.as_string())
+
+    def is_connected(self):
+        try: status = self.server.noop()[0]
+        except: status = None
+        return status == 250
+
+    def destroy(self):
+        self.server.quit()
+        self.server = None
+
+
 class YorgServerLogic(GameLogic):
 
     def __init__(self, mediator):
@@ -39,6 +82,7 @@ class YorgServerLogic(GameLogic):
         self.jid2usr = {}
         self.registered = []
         self.db = DBFacade()
+        self.mail_sender = MailSender()
 
     def on_start(self):
         GameLogic.on_start(self)
@@ -51,13 +95,18 @@ class YorgServerLogic(GameLogic):
         if not self.valid_email(email): return 'invalid_email'
         if uid in self.users(): return 'already_used_nick'
         if email in self.emails(): return 'already_used_email'
-        self.db.add(uid, pwd, salt, email)
+        activation_code = self.__rnd_seq(8)
+        self.db.add(uid, pwd, salt, email, activation_code)
+        self.mail_sender.send_mail(uid, email, activation_code)
         return 'ok'
+
+    def __rnd_seq(self, length):
+        return ''.join(choice(ascii_letters + digits) for i in range(length))
 
     def get_salt(self, uid, sender):
         users_id = [usr for usr in self.users() if usr[0] == uid]
         if users_id: return users_id[0][2]
-        return ''.join(choice(ascii_letters + digits) for i in range(8))
+        return self.__rnd_seq(8)
 
     def valid_nick(self, nick):
         return all(char in ascii_letters + digits for char in nick)
@@ -66,13 +115,13 @@ class YorgServerLogic(GameLogic):
         return match(r'[^@]+@[^@]+\.[^@]+', email)
 
     def users(self):
-        users = self.db.list()
+        users, activations = self.db.list()
         _users = []
         if users: _users = [usr[0] for usr in users]
         return _users
 
     def emails(self):
-        users = self.db.list()
+        users, activations = self.db.list()
         emails = []
         if users: emails = [usr[3] for usr in users]
         return emails

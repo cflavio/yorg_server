@@ -4,5 +4,6 @@
 logs/
 yorg.db
 supporters.db
+pwd.txt
 built/
 .sconsign.dblite
