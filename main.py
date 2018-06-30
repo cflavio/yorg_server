@@ -43,6 +43,12 @@ mail_content = \
     "Yorg's team"
 
 
+mail_reset_content = \
+    'Hi {uid}!\n\nPlease go here and insert your new password:\n\n' + \
+    'http://yorg.ya2tech.it/reset.html?uid={uid}&reset_code={reset_code}' + \
+    "\n\nThank you so much!\n\nYorg's team"
+
+
 class MailSender(object):
 
     def __init__(self):
@@ -55,15 +61,24 @@ class MailSender(object):
         with open('pwd.txt') as f: pwd = f.read().strip()
         self.server.login('noreply@ya2.it', pwd)
 
-    def send_mail(self, uid, email, activation_code):
+    def _send_mail(self, email, subj, body):
         if not self.is_connected(): self.connect()
         msg = MIMEMultipart()
         msg['From'] = 'noreply@ya2.it'
         msg['To'] = email
-        msg['Subject'] = 'Yorg: activation of the user ' + uid
-        body = mail_content.format(uid=uid, activation_code=activation_code)
+        msg['Subject'] = subj
         msg.attach(MIMEText(body, 'plain'))
         self.server.sendmail('noreply@ya2.it', email, msg.as_string())
+
+    def send_mail(self, uid, email, activation_code):
+        subj = 'Yorg: activation of the user ' + uid
+        body = mail_content.format(uid=uid, activation_code=activation_code)
+        self._send_mail(email, subj, body)
+
+    def send_mail_reset(self, uid, email, reset_code):
+        subj = "Yorg: %s's password reset" % uid
+        body = mail_reset_content.format(uid=uid, reset_code=reset_code)
+        self._send_mail(email, subj, body)
 
     def is_connected(self):
         try: status = self.server.noop()[0]
@@ -88,6 +103,7 @@ class YorgServerLogic(GameLogic):
         GameLogic.on_start(self)
         self.eng.server.start(self.process_msg_srv, self.process_connection)
         self.eng.server.register_rpc(self.register)
+        self.eng.server.register_rpc(self.reset)
         self.eng.server.register_rpc(self.get_salt)
 
     def register(self, uid, pwd, salt, email, sender):
@@ -98,6 +114,15 @@ class YorgServerLogic(GameLogic):
         activation_code = self.__rnd_seq(8)
         self.db.add(uid, pwd, salt, email, activation_code)
         self.mail_sender.send_mail(uid, email, activation_code)
+        return 'ok'
+
+    def reset(self, uid, email, sender):
+        if uid not in self.users(): return 'nonick'
+        if email not in self.emails(): return 'nomail'
+        if not self.db.is_user(uid, email): return 'dontmatch'
+        reset_code = self.__rnd_seq(8)
+        self.db.add_reset(uid, email, reset_code)
+        self.mail_sender.send_mail_reset(uid, email, reset_code)
         return 'ok'
 
     def __rnd_seq(self, length):
@@ -115,13 +140,13 @@ class YorgServerLogic(GameLogic):
         return match(r'[^@]+@[^@]+\.[^@]+', email)
 
     def users(self):
-        users, activations = self.db.list()
+        users, activations, reset = self.db.list()
         _users = []
         if users: _users = [usr[0] for usr in users]
         return _users
 
     def emails(self):
-        users, activations = self.db.list()
+        users, activations, reset = self.db.list()
         emails = []
         if users: emails = [usr[3] for usr in users]
         return emails

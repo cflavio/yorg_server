@@ -2,6 +2,9 @@ from argparse import ArgumentParser
 from sqlite3 import connect
 from pprint import pprint
 from datetime import date, datetime
+from random import choice
+from string import ascii_letters, digits
+from hashlib import sha512
 
 
 class DBFacade(object):
@@ -14,14 +17,14 @@ class DBFacade(object):
             'is_supporter integer', 'reg_date text', 'last_access text']
         activation_columns = [
             'uid text primary key', 'activation text']
-        info = [('users', user_columns), ('activation', activation_columns)]
+        reset_columns = [
+            'uid text primary key', 'email text', 'reset text']
+        info = [('users', user_columns), ('activation', activation_columns),
+                ('reset', reset_columns)]
         for table, columns in info:
             columns = ', '.join(columns)
             query = 'CREATE TABLE if not exists %s (%s)' % (table, columns)
             self.__sql(query, True)
-
-
-        self.clean()
 
     def __sql(self, cmd, commit=False):
         if type(cmd) in [str, unicode]: cmd = [cmd]
@@ -30,7 +33,7 @@ class DBFacade(object):
 
     def list(self, _print=False):
         ret_val = []
-        for table in ['users', 'activation']:
+        for table in ['users', 'activation', 'reset']:
             self.__sql('SELECT * from ' + table)
             if _print: pprint(list(self.cur.fetchall()))
             ret_val += [[elm for elm in self.cur.fetchall()]]
@@ -39,6 +42,27 @@ class DBFacade(object):
     def activate(self, uid, activation_code):
         self.__sql(["DELETE FROM activation WHERE uid=? and activation=?", (uid, activation_code)], True)
         self.clean()
+
+    def __rnd_seq(self, length):
+        return ''.join(choice(ascii_letters + digits) for i in range(length))
+
+    def reset(self, uid, pwd):
+        salt = self.__rnd_seq(8)
+        new_pwd = sha512(pwd + salt).hexdigest()
+        query = 'UPDATE users SET pwd = "%s", salt = "%s" WHERE uid = "%s"'
+        query = query % (new_pwd, salt, uid)
+        self.__sql(query, True)
+        self.__sql(["DELETE FROM reset WHERE uid=?", (uid,)], True)
+
+    def is_user(self, uid, email):
+        query = "SELECT * FROM users WHERE uid=? and email=?"
+        val = self.__sql([query, (uid, email)])
+        return [elm for elm in self.cur.fetchall()]
+
+    def is_valid_reset(self, uid, reset_code):
+        query = "SELECT * FROM reset WHERE uid=? and reset=?"
+        val = self.__sql([query, (uid, reset_code)])
+        return [elm for elm in self.cur.fetchall()]
 
     def add(self, uid, pwd, salt, email, activation):
         quoted = ['"%s"' % elm for elm in [uid, pwd, salt, email]]
@@ -49,6 +73,12 @@ class DBFacade(object):
         quoted = ['"%s"' % elm for elm in [uid, activation]]
         vals = ', '.join(quoted)
         self.__sql("INSERT INTO activation VALUES (%s)" % vals, True)
+
+    def add_reset(self, uid, email, reset_code):
+        self.__sql(["DELETE FROM reset WHERE uid=?", (uid,)], True)
+        quoted = ['"%s"' % elm for elm in [uid, email, reset_code]]
+        vals = ', '.join(quoted)
+        self.__sql("INSERT INTO reset VALUES (%s)" % vals, True)
 
     def remove(self, uid):
         self.__sql(["DELETE FROM users WHERE uid=?", (uid,)], True)
@@ -63,6 +93,15 @@ class DBFacade(object):
         for usr in rmusr:
             self.__sql(["DELETE FROM users WHERE uid=?", (usr,)], True)
             self.__sql(["DELETE FROM activation WHERE uid=?", (usr,)], True)
+
+        self.__sql('SELECT users.uid, last_access FROM users INNER JOIN reset ON users.uid = reset.uid')
+        users = [elm for elm in self.cur.fetchall()]
+        def dist(_date):
+            today = datetime.today()
+            return (today - datetime.strptime(_date, '%Y-%m-%d')).days
+        rmusr = [usr[0] for usr in users if dist(usr[1]) > 2]
+        for usr in rmusr:
+            self.__sql(["DELETE FROM reset WHERE uid=?", (usr,)], True)
 
 
 if __name__ == '__main__':
