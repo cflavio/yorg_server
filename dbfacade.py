@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from logging import info, debug
 from sqlite3 import connect
 from pprint import pprint
 from datetime import date, datetime
@@ -10,6 +11,7 @@ from hashlib import sha512
 class DBFacade(object):
 
     def __init__(self):
+        debug('creating db facade')
         self.conn = connect('yorg.db')
         self.cur = self.conn.cursor()
         user_columns = [
@@ -28,6 +30,7 @@ class DBFacade(object):
 
     def __sql(self, cmd, commit=False):
         if type(cmd) in [str, unicode]: cmd = [cmd]
+        debug('sql (commit: %s): %s' % (commit, cmd))
         self.cur.execute(*cmd)
         if commit: self.conn.commit()
 
@@ -40,6 +43,7 @@ class DBFacade(object):
         return ret_val
 
     def activate(self, uid, activation_code):
+        info('activate %s %s' % (uid, activation_code))
         self.__sql(["DELETE FROM activation WHERE uid=? and activation=?", (uid, activation_code)], True)
         self.clean()
 
@@ -47,6 +51,7 @@ class DBFacade(object):
         return ''.join(choice(ascii_letters + digits) for i in range(length))
 
     def reset(self, uid, pwd):
+        info('reset %s' % uid)
         salt = self.__rnd_seq(8)
         new_pwd = sha512(pwd + salt).hexdigest()
         query = 'UPDATE users SET pwd = "%s", salt = "%s" WHERE uid = "%s"'
@@ -65,6 +70,7 @@ class DBFacade(object):
         return [elm for elm in self.cur.fetchall()]
 
     def add(self, uid, pwd, salt, email, activation):
+        info('add %s %s' % (uid, email))
         quoted = ['"%s"' % elm for elm in [uid, pwd, salt, email]]
         today = '"%s"' % date.today().isoformat()
         quoted += ['0', today, today]
@@ -75,12 +81,14 @@ class DBFacade(object):
         self.__sql("INSERT INTO activation VALUES (%s)" % vals, True)
 
     def add_reset(self, uid, email, reset_code):
+        info('add reset %s %s' % (uid, email))
         self.__sql(["DELETE FROM reset WHERE uid=?", (uid,)], True)
         quoted = ['"%s"' % elm for elm in [uid, email, reset_code]]
         vals = ', '.join(quoted)
         self.__sql("INSERT INTO reset VALUES (%s)" % vals, True)
 
     def remove(self, uid):
+        info('remove %s' % uid)
         self.__sql(["DELETE FROM users WHERE uid=?", (uid,)], True)
 
     def clean(self):

@@ -10,7 +10,7 @@ from smtplib import SMTP
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from argparse import ArgumentParser
-from logging import basicConfig, DEBUG, getLogger, info
+from logging import basicConfig, DEBUG, getLogger, info, debug
 from logging.handlers import TimedRotatingFileHandler
 from random import choice, randint
 from sleekxmpp import ClientXMPP
@@ -60,6 +60,7 @@ class MailSender(object):
         self.server.starttls()
         with open('pwd.txt') as f: pwd = f.read().strip()
         self.server.login('noreply@ya2.it', pwd)
+        debug('connected to the smtp server')
 
     def _send_mail(self, email, subj, body):
         if not self.is_connected(): self.connect()
@@ -69,6 +70,7 @@ class MailSender(object):
         msg['Subject'] = subj
         msg.attach(MIMEText(body, 'plain'))
         self.server.sendmail('noreply@ya2.it', email, msg.as_string())
+        info('sent email to %s: %s' % (email, subj))
 
     def send_mail(self, uid, email, activation_code):
         subj = 'Yorg: activation of the user ' + uid
@@ -105,21 +107,32 @@ class YorgServerLogic(GameLogic):
         self.eng.server.register_rpc(self.register)
         self.eng.server.register_rpc(self.reset)
         self.eng.server.register_rpc(self.get_salt)
+        info('server started')
 
     def register(self, uid, pwd, salt, email, sender):
-        if not self.valid_nick(uid): return 'invalid_nick'
-        if not self.valid_email(email): return 'invalid_email'
-        if uid in self.users(): return 'already_used_nick'
-        if email in self.emails(): return 'already_used_email'
+        debug('registering ' + uid)
+        ret_val = ''
+        if not self.valid_nick(uid): ret_val = 'invalid_nick'
+        if not self.valid_email(email): ret_val = 'invalid_email'
+        if uid in self.users(): ret_val = 'already_used_nick'
+        if email in self.emails(): ret_val = 'already_used_email'
+        if ret_val:
+            info('register result: ' + ret_val)
+            return ret_val
         activation_code = self.__rnd_seq(8)
         self.db.add(uid, pwd, salt, email, activation_code)
         self.mail_sender.send_mail(uid, email, activation_code)
+        info('register ok')
         return 'ok'
 
     def reset(self, uid, email, sender):
-        if uid not in self.users(): return 'nonick'
-        if email not in self.emails(): return 'nomail'
-        if not self.db.is_user(uid, email): return 'dontmatch'
+        ret_val = ''
+        if uid not in self.users(): ret_val = 'nonick'
+        if email not in self.emails(): ret_val = 'nomail'
+        if not self.db.is_user(uid, email): ret_val = 'dontmatch'
+        if ret_val:
+            info('reset result: ' + ret_val)
+            return ret_val
         reset_code = self.__rnd_seq(8)
         self.db.add_reset(uid, email, reset_code)
         self.mail_sender.send_mail_reset(uid, email, reset_code)
@@ -152,11 +165,11 @@ class YorgServerLogic(GameLogic):
         return emails
 
     def process_msg_srv(self, data_lst, sender):
-        print data_lst, sender
+        info('%s %s' % (data_lst, sender))
         self.eng.server.send([sender.getpeername()[1]], sender)
 
     def process_connection(self, client_address):
-        print 'connection from ' + client_address
+        info('connection from %s' % client_address)
 
     def on_presence_available(self, msg):
         pass
@@ -202,13 +215,28 @@ class YorgServerLogic(GameLogic):
 class YorgServer(Game):
 
     def __init__(self):
+        info('starting the server')
         parser = ArgumentParser()
         parser.add_argument('--port', type=int, default=0)
         args = parser.parse_args()
+        info('using the port %s' % args.port)
         dev_cfg = DevCfg(port=args.port) if args.port else DevCfg()
         init_lst = [[('logic', YorgServerLogic, [self])]]
         conf = Cfg(GuiCfg(), ProfilingCfg(), LangCfg(), CursorCfg(), dev_cfg)
         Game.__init__(self, init_lst, conf)
 
+    def kill(self):
+        self.eng.server.destroy()
+        self.eng.client.destroy()
+        info('killed the server')
 
-YorgServer().run()
+
+if __name__ == '__main__':
+    yorg_srv = YorgServer()
+    try:
+        yorg_srv.run()
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        with open('logs/yorg_server.log', 'a') as f:
+            import traceback; traceback.print_exc(file=f)
+        yorg_srv.kill()

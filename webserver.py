@@ -1,6 +1,10 @@
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
+from os.path import exists
+from os import mkdir
 from urlparse import urlparse, parse_qs
+from logging import basicConfig, DEBUG, getLogger, info, debug
+from logging.handlers import TimedRotatingFileHandler
 from dbfacade import DBFacade
 
 
@@ -53,6 +57,7 @@ Please retry.</p>
 </html>
 '''
 
+
 resetok_page = '''\
 <html>
 <body>
@@ -61,6 +66,13 @@ resetok_page = '''\
 </body>
 </html>
 '''
+
+
+if not exists('logs'): mkdir('logs')
+basicConfig(level=DEBUG, format='%(levelname)-8s %(message)s')
+handler = TimedRotatingFileHandler('logs/yorg_server_web.log', 'midnight')
+handler.suffix = '%Y%m%d'
+getLogger().addHandler(handler)
 
 
 class SimpleHandler(BaseHTTPRequestHandler):
@@ -113,4 +125,9 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer): pass
 
 if __name__ == '__main__':
     server = ThreadedHTTPServer(('localhost', 9090), SimpleHandler)
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        with open('logs/yorg_server_web.log', 'a') as f:
+            import traceback; traceback.print_exc(file=f)
