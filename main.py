@@ -105,6 +105,7 @@ class YorgServerLogic(GameLogic):
         GameLogic.on_start(self)
         self.eng.server.start(self.process_msg_srv, self.process_connection)
         self.eng.server.register_rpc(self.register)
+        self.eng.server.register_rpc(self.login)
         self.eng.server.register_rpc(self.reset)
         self.eng.server.register_rpc(self.get_salt)
         info('server started')
@@ -114,7 +115,7 @@ class YorgServerLogic(GameLogic):
         ret_val = ''
         if not self.valid_nick(uid): ret_val = 'invalid_nick'
         if not self.valid_email(email): ret_val = 'invalid_email'
-        if uid in self.users(): ret_val = 'already_used_nick'
+        if uid in self.user_names(): ret_val = 'already_used_nick'
         if email in self.emails(): ret_val = 'already_used_email'
         if ret_val:
             info('register result: ' + ret_val)
@@ -125,9 +126,21 @@ class YorgServerLogic(GameLogic):
         info('register ok')
         return 'ok'
 
+    def login(self, uid, pwd, sender):
+        debug('login ' + uid)
+        ret_val = ''
+        if not self.valid_nick(uid): ret_val = 'invalid_nick'
+        elif uid not in self.user_names(): ret_val = 'unregistered_nick'
+        elif not self.db.login(uid, pwd): ret_val = 'wrong_pwd'
+        if ret_val:
+            info('login result: ' + ret_val)
+            return ret_val
+        info('login ok')
+        return 'ok'
+
     def reset(self, uid, email, sender):
         ret_val = ''
-        if uid not in self.users(): ret_val = 'nonick'
+        if uid not in self.user_names(): ret_val = 'nonick'
         if email not in self.emails(): ret_val = 'nomail'
         if not self.db.is_user(uid, email): ret_val = 'dontmatch'
         if ret_val:
@@ -152,11 +165,15 @@ class YorgServerLogic(GameLogic):
     def valid_email(self, email):
         return match(r'[^@]+@[^@]+\.[^@]+', email)
 
-    def users(self):
+    def user_names(self):
         users, activations, reset = self.db.list()
         _users = []
         if users: _users = [usr[0] for usr in users]
         return _users
+
+    def users(self):
+        users, activations, reset = self.db.list()
+        return users
 
     def emails(self):
         users, activations, reset = self.db.list()

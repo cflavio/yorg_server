@@ -87,6 +87,11 @@ class DBFacade(object):
         vals = ', '.join(quoted)
         self.__sql("INSERT INTO reset VALUES (%s)" % vals, True)
 
+    def login(self, uid, pwd):
+        query = "SELECT * FROM users WHERE uid=? and pwd=?"
+        self.__sql([query, (uid, pwd)])
+        return bool([elm for elm in self.cur.fetchall()])
+
     def remove(self, uid):
         info('remove %s' % uid)
         self.__sql(["DELETE FROM users WHERE uid=?", (uid,)], True)
