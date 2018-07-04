@@ -69,6 +69,11 @@ class DBFacade(object):
         val = self.__sql([query, (uid, reset_code)])
         return [elm for elm in self.cur.fetchall()]
 
+    def is_supporter(self, uid):
+        query = "SELECT uid, is_supporter FROM users WHERE uid=?"
+        val = self.__sql([query, (uid,)])
+        return [elm for elm in self.cur.fetchall()][0][1]
+
     def add(self, uid, pwd, salt, email, activation):
         info('add %s %s' % (uid, email))
         quoted = ['"%s"' % elm for elm in [uid, pwd, salt, email]]

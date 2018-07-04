@@ -23,9 +23,10 @@ from yyagl.engine.configuration import Cfg, GuiCfg, ProfilingCfg, LangCfg, \
 
 class User(object):
 
-    def __init__(self, name, is_supporter):
-        self.name = name
+    def __init__(self, uid, is_supporter):
+        self.uid = uid
         self.is_supporter = is_supporter
+        self.is_playing = False
 
 
 if not exists('logs'): mkdir('logs')
@@ -100,15 +101,29 @@ class YorgServerLogic(GameLogic):
         self.registered = []
         self.db = DBFacade()
         self.mail_sender = MailSender()
+        self.conn2usr = {}
 
     def on_start(self):
         GameLogic.on_start(self)
+        self.eng.server.attach(self.on_connected)
+        self.eng.server.attach(self.on_disconnected)
         self.eng.server.start(self.process_msg_srv, self.process_connection)
         self.eng.server.register_rpc(self.register)
         self.eng.server.register_rpc(self.login)
         self.eng.server.register_rpc(self.reset)
         self.eng.server.register_rpc(self.get_salt)
+        self.eng.server.register_rpc(self.get_users)
         info('server started')
+
+
+    def on_connected(self, conn):
+        self.conn2usr[conn] = None
+        info('new connection %s' % conn)
+
+    def on_disconnected(self, conn):
+        self.eng.server.send(['logout', self.conn2usr[conn].uid])
+        del self.conn2usr[conn]
+        info('lost connection %s' % conn)
 
     def register(self, uid, pwd, salt, email, sender):
         debug('registering ' + uid)
@@ -135,8 +150,15 @@ class YorgServerLogic(GameLogic):
         if ret_val:
             info('login result: ' + ret_val)
             return ret_val
+        usr = User(uid, self.db.is_supporter(uid))
+        self.conn2usr[sender] = usr
+        info('user %s - %s' % (uid, sender))
+        self.eng.server.send(['login', uid, usr.is_supporter, usr.is_playing])
         info('login ok')
         return 'ok'
+
+    @property
+    def current_users(self): return self.conn2usr.values()
 
     def reset(self, uid, email, sender):
         ret_val = ''
@@ -174,6 +196,9 @@ class YorgServerLogic(GameLogic):
     def users(self):
         users, activations, reset = self.db.list()
         return users
+
+    def get_users(self, sender):
+        return [[usr.uid, usr.is_supporter, usr.is_playing] for usr in self.current_users]
 
     def emails(self):
         users, activations, reset = self.db.list()
