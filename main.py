@@ -115,7 +115,6 @@ class YorgServerLogic(GameLogic):
         self.eng.server.register_rpc(self.get_users)
         info('server started')
 
-
     def on_connected(self, conn):
         self.conn2usr[conn] = None
         info('new connection %s' % conn)
@@ -198,6 +197,7 @@ class YorgServerLogic(GameLogic):
         return users
 
     def get_users(self, sender):
+        debug(self.current_users)
         return [[usr.uid, usr.is_supporter, usr.is_playing] for usr in self.current_users]
 
     def emails(self):
@@ -208,7 +208,16 @@ class YorgServerLogic(GameLogic):
 
     def process_msg_srv(self, data_lst, sender):
         info('%s %s' % (data_lst, sender))
-        self.eng.server.send([sender.getpeername()[1]], sender)
+        #self.eng.server.send([sender.getpeername()[1]], sender)
+        if data_lst[0] == 'msg':
+            self.on_msg(*data_lst[1:])
+
+    @property
+    def usr2conn(self):
+        return {usr.uid: conn for conn, usr in self.conn2usr.iteritems()}
+
+    def on_msg(self, from_, to, txt):
+        self.eng.server.send(['msg', from_, to, txt], self.usr2conn[to])
 
     def process_connection(self, client_address):
         info('connection from %s' % client_address)
