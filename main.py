@@ -93,6 +93,18 @@ class MailSender(object):
         self.server = None
 
 
+class Room(object):
+
+    def __init__(self, name):
+        self.name = name
+        self.users = []
+
+    def add_usr(self, uid): self.users += [uid]
+
+    @property
+    def is_empty(self): return not self.users
+
+
 class YorgServerLogic(GameLogic):
 
     def __init__(self, mediator):
@@ -102,6 +114,8 @@ class YorgServerLogic(GameLogic):
         self.db = DBFacade()
         self.mail_sender = MailSender()
         self.conn2usr = {}
+        self.rooms = []
+        taskMgr.doMethodLater(60, self.clean, 'clean')
 
     def on_start(self):
         GameLogic.on_start(self)
@@ -113,10 +127,11 @@ class YorgServerLogic(GameLogic):
         self.eng.server.register_rpc(self.reset)
         self.eng.server.register_rpc(self.get_salt)
         self.eng.server.register_rpc(self.get_users)
+        self.eng.server.register_rpc(self.join_room)
+        self.eng.server.register_rpc(self.invite)
         info('server started')
 
     def on_connected(self, conn):
-        self.conn2usr[conn] = None
         info('new connection %s' % conn)
 
     def on_disconnected(self, conn):
@@ -196,6 +211,17 @@ class YorgServerLogic(GameLogic):
         users, activations, reset = self.db.list()
         return users
 
+    def join_room(self, room_name, sender):
+        usr = self.conn2usr[sender]
+        if room_name not in [room.name for room in self.rooms]:
+            self.rooms += [Room(room_name)]
+        room = [room for room in self.rooms if room.name == room_name][0]
+        for _usr in room.users:
+            debug('send presence_available_room %s to %s' % (usr.uid, _usr.uid))
+            self.eng.server.send(['presence_available_room', usr.uid, room_name], self.usr2conn[_usr.uid])
+        room.add_usr(usr)
+        self.eng.server.send(['is_playing', usr.uid, 1])
+
     def get_users(self, sender):
         debug(self.current_users)
         return [[usr.uid, usr.is_supporter, usr.is_playing] for usr in self.current_users]
@@ -211,6 +237,13 @@ class YorgServerLogic(GameLogic):
         #self.eng.server.send([sender.getpeername()[1]], sender)
         if data_lst[0] == 'msg':
             self.on_msg(*data_lst[1:])
+        if data_lst[0] == 'declined':
+            self.on_declined(data_lst[1], data_lst[2])
+
+    def on_declined(self, from_, to):
+        self.eng.server.send(['declined', from_], self.usr2conn[to])
+        self.find_usr(from_).is_playing = 0
+        self.eng.server.send(['is_playing', from_, 0])
 
     @property
     def usr2conn(self):
@@ -218,6 +251,19 @@ class YorgServerLogic(GameLogic):
 
     def on_msg(self, from_, to, txt):
         self.eng.server.send(['msg', from_, to, txt], self.usr2conn[to])
+
+    def find_usr(self, uid):
+        return [usr for usr in self.conn2usr.values() if usr.uid == uid][0]
+
+    def invite(self, to, room_name, sender):
+        usr = self.find_usr(to)
+        if usr.is_playing: return 'ko'
+        usr.is_playing = True
+        self.eng.server.send(['is_playing', to, 1])
+        from_ = self.conn2usr[sender].uid
+        debug('invite %s %s %s' % (from_, to, room_name))
+        self.eng.server.send(['invite_chat', from_, to, room_name], self.usr2conn[to])
+        return 'ok'
 
     def process_connection(self, client_address):
         info('connection from %s' % client_address)
@@ -261,6 +307,12 @@ class YorgServerLogic(GameLogic):
         #     mbody='\n'.join(names))
 
     def is_supporter(self, name): return JID(name).bare in self.supp_mgr.list()
+
+    def clean(self, task):
+        for room in self.rooms[:]:
+            if room.is_empty:
+                self.rooms.remove(room)
+        return task.again
 
 
 class YorgServer(Game):
