@@ -237,6 +237,8 @@ class YorgServerLogic(GameLogic):
         #self.eng.server.send([sender.getpeername()[1]], sender)
         if data_lst[0] == 'msg':
             self.on_msg(*data_lst[1:])
+        if data_lst[0] == 'msg_room':
+            self.on_msg_room(*data_lst[1:])
         if data_lst[0] == 'declined':
             self.on_declined(data_lst[1], data_lst[2])
 
@@ -245,12 +247,21 @@ class YorgServerLogic(GameLogic):
         self.find_usr(from_).is_playing = 0
         self.eng.server.send(['is_playing', from_, 0])
 
+    def find_room(self, room_name):
+        for room in self.rooms:
+            if room.name == room_name: return room
+
     @property
     def usr2conn(self):
         return {usr.uid: conn for conn, usr in self.conn2usr.iteritems()}
 
     def on_msg(self, from_, to, txt):
         self.eng.server.send(['msg', from_, to, txt], self.usr2conn[to])
+
+    def on_msg_room(self, from_, to, txt):
+        room = self.find_room(to)
+        for usr in room.users:
+            self.eng.server.send(['msg_room', from_, to, txt], self.usr2conn[usr.uid])
 
     def find_usr(self, uid):
         return [usr for usr in self.conn2usr.values() if usr.uid == uid][0]
