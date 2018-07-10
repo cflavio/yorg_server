@@ -241,6 +241,8 @@ class YorgServerLogic(GameLogic):
             self.on_msg_room(*data_lst[1:])
         if data_lst[0] == 'declined':
             self.on_declined(data_lst[1], data_lst[2])
+        if data_lst[0] == 'track_selected':
+            self.on_track_selected(*data_lst[1:])
 
     def on_declined(self, from_, to):
         self.eng.server.send(['declined', from_], self.usr2conn[to])
@@ -262,6 +264,11 @@ class YorgServerLogic(GameLogic):
         room = self.find_room(to)
         for usr in room.users:
             self.eng.server.send(['msg_room', from_, to, txt], self.usr2conn[usr.uid])
+
+    def on_track_selected(self, track, room):
+        room = self.find_room(room)
+        for usr in room.users:
+            self.eng.server.send(['track_selected', track], self.usr2conn[usr.uid])
 
     def find_usr(self, uid):
         return [usr for usr in self.conn2usr.values() if usr.uid == uid][0]
