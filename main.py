@@ -98,7 +98,11 @@ class Room(object):
     def __init__(self, name):
         self.name = name
         self.users = []
+        self.ready = []
+        self.ready_cd = []
         self.car_mapping = {}
+        self.drv_mapping = {}
+        self.drivers = {}
         self.state = 0
 
     def add_usr(self, uid): self.users += [uid]
@@ -136,11 +140,13 @@ class YorgServerLogic(GameLogic):
         self.eng.server.register_rpc(self.join_room)
         self.eng.server.register_rpc(self.invite)
         self.eng.server.register_rpc(self.car_request)
+        self.eng.server.register_rpc(self.drv_request)
         info('server started')
 
     def on_frame(self, task):
         for room in self.rooms:
             self.evaluate_starting(room)
+            self.evaluate_starting_drv(room)
         return task.cont
 
     def on_connected(self, conn):
@@ -237,7 +243,7 @@ class YorgServerLogic(GameLogic):
     def car_request(self, car, sender):
         uid = self.conn2usr[sender].uid
         info('car request: %s %s' % (uid, car))
-        room = self.find_room_with_user(uid)
+        room = self.find_room_with_user(uid, 0)
         if car not in room.car_mapping.values():
             if uid in room.car_mapping:
                 for usr in room.users:
@@ -251,14 +257,42 @@ class YorgServerLogic(GameLogic):
         else:
             return 'ko'
 
+    def drv_request(self, car, i, speed, adherence, stability, sender):
+        uid = self.conn2usr[sender].uid
+        info('drv request: %s %s %s %s %s %s' % (uid, car, i, speed, adherence, stability))
+        room = self.find_room_with_user(uid, 1)
+        if i not in room.drv_mapping.values():
+            if uid in room.drv_mapping:
+                for usr in room.users:
+                    info('driver deselection: %s has deselected %s to %s' % (uid, room.drv_mapping[uid], usr.uid))
+                    self.eng.server.send(['drv_deselection', room.drv_mapping[uid]], self.usr2conn[usr.uid])
+            room.drv_mapping[uid] = i
+            room.drivers[uid] = [i, speed, adherence, stability]
+            for usr in room.users:
+                info('driver selection: %s has selected %s to %s' % (uid, i, usr.uid))
+                self.eng.server.send(['drv_selection', i, uid], self.usr2conn[usr.uid])
+            return 'ok'
+        else:
+            return 'ko'
+
     def evaluate_starting(self, room):
-        if room.state == 1 or not all(uid in room.car_mapping for uid in room.users_uid): return
+        if room.state != 0 or not all(uid in room.car_mapping for uid in room.users_uid): return
         room.state = 1
         packet = ['start_drivers']
         for uid, car in room.car_mapping.items():
             packet += [uid, car]
         for usr in room.users:
-            info('send: %s to %s' % (packet, self.usr2conn[usr.uid]))
+            info('send: %s to %s' % (packet, usr.uid))
+            self.eng.server.send(packet, self.usr2conn[usr.uid])
+
+    def evaluate_starting_drv(self, room):
+        if room.state != 1 or not all(uid in room.drv_mapping for uid in room.users_uid): return
+        room.state = 2
+        packet = ['start_race', len(room.drv_mapping)]
+        for uid, drv in room.drv_mapping.items():
+            packet += [room.drivers[uid][0]] + [room.car_mapping[uid]] + [uid] + room.drivers[uid][1:]
+        for usr in room.users:
+            info('send: %s to %s' % (packet, usr.uid))
             self.eng.server.send(packet, self.usr2conn[usr.uid])
 
     def get_users(self, sender):
@@ -282,6 +316,26 @@ class YorgServerLogic(GameLogic):
             self.on_declined(data_lst[1], data_lst[2])
         if data_lst[0] == 'track_selected':
             self.on_track_selected(*data_lst[1:])
+        if data_lst[0] == 'client_ready':
+            self.on_client_ready(self.conn2usr[sender].uid)
+        if data_lst[0] == 'client_at_countdown':
+            self.on_client_at_countdown(self.conn2usr[sender].uid)
+
+    def on_client_ready(self, uid):
+        room = self.find_room_with_user(uid, 2)
+        if uid not in room.ready: room.ready += [uid]
+        if all(usr.uid in room.ready for usr in room.users):
+            for usr in room.users:
+                info('begin race: %s' % usr.uid)
+                self.eng.server.send(['begin_race'], self.usr2conn[usr.uid])
+
+    def on_client_at_countdown(self, uid):
+        room = self.find_room_with_user(uid, 2)
+        if uid not in room.ready_cd: room.ready_cd += [uid]
+        if all(usr.uid in room.ready_cd for usr in room.users):
+            for usr in room.users:
+                info('start countdown: %s' % usr.uid)
+                self.eng.server.send(['start_countdown'], self.usr2conn[usr.uid])
 
     def on_declined(self, from_, to):
         self.eng.server.send(['declined', from_], self.usr2conn[to])
@@ -292,9 +346,9 @@ class YorgServerLogic(GameLogic):
         for room in self.rooms:
             if room.name == room_name: return room
 
-    def find_room_with_user(self, uid):
+    def find_room_with_user(self, uid, state):
         for room in self.rooms:
-            if room.state == 1: continue
+            if room.state != state: continue
             if uid in room.users_uid: return room
 
     @property
