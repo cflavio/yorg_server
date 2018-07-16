@@ -10,7 +10,7 @@ from smtplib import SMTP
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from argparse import ArgumentParser
-from logging import basicConfig, DEBUG, getLogger, info, debug
+from logging import basicConfig, DEBUG, INFO, getLogger, info, debug
 from logging.handlers import TimedRotatingFileHandler
 from random import choice, randint
 from sleekxmpp import ClientXMPP
@@ -95,8 +95,9 @@ class MailSender(object):
 
 class Room(object):
 
-    def __init__(self, name):
+    def __init__(self, name, srv_usr):
         self.name = name
+        self.srv_usr = srv_usr
         self.users = []
         self.ready = []
         self.ready_cd = []
@@ -232,7 +233,7 @@ class YorgServerLogic(GameLogic):
     def join_room(self, room_name, sender):
         usr = self.conn2usr[sender]
         if room_name not in [room.name for room in self.rooms]:
-            self.rooms += [Room(room_name)]
+            self.rooms += [Room(room_name, usr.uid)]
         room = [room for room in self.rooms if room.name == room_name][0]
         for _usr in room.users:
             debug('send presence_available_room %s to %s' % (usr.uid, _usr.uid))
@@ -306,7 +307,7 @@ class YorgServerLogic(GameLogic):
         return emails
 
     def process_msg_srv(self, data_lst, sender):
-        info('%s %s' % (data_lst, sender))
+        debug('%s %s' % (data_lst, sender))
         #self.eng.server.send([sender.getpeername()[1]], sender)
         if data_lst[0] == 'msg':
             self.on_msg(*data_lst[1:])
@@ -320,6 +321,14 @@ class YorgServerLogic(GameLogic):
             self.on_client_ready(self.conn2usr[sender].uid)
         if data_lst[0] == 'client_at_countdown':
             self.on_client_at_countdown(self.conn2usr[sender].uid)
+        if data_lst[0] == 'player_info':
+            self.on_player_info(data_lst)
+        if data_lst[0] == 'game_packet':
+            self.on_game_packet(data_lst)
+        if data_lst[0] == 'end_race_player':
+            self.on_end_race_player(self.conn2usr[sender].uid)
+        if data_lst[0] == 'end_race':
+            self.on_end_race(self.conn2usr[sender].uid)
 
     def on_client_ready(self, uid):
         room = self.find_room_with_user(uid, 2)
@@ -328,6 +337,18 @@ class YorgServerLogic(GameLogic):
             for usr in room.users:
                 info('begin race: %s' % usr.uid)
                 self.eng.server.send(['begin_race'], self.usr2conn[usr.uid])
+
+    def on_player_info(self, data_lst):
+        room = self.find_room_with_user(data_lst[1], 2)
+        debug('player_info to server: %s' % data_lst)
+        self.eng.server.send(data_lst, self.usr2conn[room.srv_usr])
+
+    def on_game_packet(self, data_lst):
+        room = self.find_room_with_user(data_lst[1], 2)
+        for usr in room.users:
+            if usr.uid == room.srv_usr: continue
+            debug('game_packet to %s: %s' % (usr.uid, data_lst))
+            self.eng.server.send(data_lst, self.usr2conn[usr.uid])
 
     def on_client_at_countdown(self, uid):
         room = self.find_room_with_user(uid, 2)
@@ -341,6 +362,17 @@ class YorgServerLogic(GameLogic):
         self.eng.server.send(['declined', from_], self.usr2conn[to])
         self.find_usr(from_).is_playing = 0
         self.eng.server.send(['is_playing', from_, 0])
+
+    def on_end_race_player(self, uid):
+        room = self.find_room_with_user(uid, 2)
+        info('end race player: %s' % uid)
+        self.eng.server.send(['end_race_player', uid], self.usr2conn[room.srv_usr])
+
+    def on_end_race(self, uid):
+        room = self.find_room_with_user(uid, 2)
+        for usr in room.users:
+            info('end race: %s' % usr.uid)
+            self.eng.server.send(['end_race'], self.usr2conn[usr.uid])
 
     def find_room(self, room_name):
         for room in self.rooms:
