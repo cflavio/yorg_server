@@ -13,8 +13,6 @@ from argparse import ArgumentParser
 from logging import basicConfig, DEBUG, INFO, getLogger, info, debug
 from logging.handlers import TimedRotatingFileHandler
 from random import choice, randint
-from sleekxmpp import ClientXMPP
-from sleekxmpp.jid import JID
 from dbfacade import DBFacade
 from yyagl.game import Game, GameLogic
 from yyagl.engine.configuration import Cfg, GuiCfg, ProfilingCfg, LangCfg, \
@@ -108,7 +106,9 @@ class Room(object):
 
     def add_usr(self, usr): self.users += [usr]
 
-    def rm_usr(self, usr): self.users.remove(usr)
+    def rm_usr(self, usr):
+        if usr in self.users: self.users.remove(usr)
+        else: debug('user %s already removed' % usr.uid)  # it may happen on user's removal
 
     @property
     def users_uid(self): return [usr.uid for usr in self.users]
@@ -145,6 +145,7 @@ class YorgServerLogic(GameLogic):
         self.eng.server.register_rpc(self.invite)
         self.eng.server.register_rpc(self.car_request)
         self.eng.server.register_rpc(self.drv_request)
+        self.eng.server.register_rpc(self.rm_usr_from_match)
         info('server started')
 
     def on_frame(self, task):
@@ -296,6 +297,21 @@ class YorgServerLogic(GameLogic):
             return 'ok'
         else:
             return 'ko'
+
+    def rm_usr_from_match(self, usr_uid, room_name, sender):
+        room = [room for room in self.rooms if room.name == room_name][0]
+        rm_usr = [usr for usr in self.current_users if usr.uid == usr_uid][0]
+        rcv_usr = room.users
+        if rm_usr not in rcv_usr: rcv_usr += [rm_usr]
+        for _usr in rcv_usr:
+            debug('send rm_usr_from_match %s to %s' % (usr_uid, _usr.uid))
+            self.eng.server.send(['rm_usr_from_match', usr_uid, room_name], self.usr2conn[_usr.uid])
+        usr = None
+        for _usr in room.users:
+            if usr_uid == _usr.uid:
+                usr = _usr
+        if usr: room.rm_usr(usr)  # if the user hasn't accepted yet
+        self.eng.server.send(['is_playing', usr_uid, 0])
 
     def evaluate_starting(self, room):
         if room.state != 0 or not all(uid in room.car_mapping for uid in room.users_uid): return
