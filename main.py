@@ -378,6 +378,7 @@ class YorgServerLogic(GameLogic):
     def on_player_info(self, data_lst):
         room = self.find_rooms_with_user(data_lst[1], 2)[0]
         debug('player_info to server: %s' % data_lst)
+        if room.srv_usr not in self.usr2conn: return  # usr has quit
         self.eng.server.send(data_lst, self.usr2conn[room.srv_usr])
 
     def on_game_packet(self, data_lst):
@@ -390,7 +391,8 @@ class YorgServerLogic(GameLogic):
     def on_client_at_countdown(self, uid):
         room = self.find_rooms_with_user(uid, 2)[0]
         if uid not in room.ready_cd: room.ready_cd += [uid]
-        if all(usr.uid in room.ready_cd for usr in room.users):
+        if all(usr.uid in room.ready_cd for usr in room.users) and \
+                room.srv_usr in self.usr2conn:
             for usr in room.users:
                 info('start countdown: %s' % usr.uid)
                 self.eng.server.send(['start_countdown'], self.usr2conn[usr.uid])
