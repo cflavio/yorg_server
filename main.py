@@ -138,7 +138,6 @@ class YorgServerLogic(GameLogic):
         self.mail_sender = MailSender()
         self.conn2usr = {}
         self.rooms = []
-        taskMgr.doMethodLater(60, self.clean, 'clean')
         taskMgr.add(self.on_frame, 'on frame')
 
     def on_start(self):
@@ -174,6 +173,7 @@ class YorgServerLogic(GameLogic):
         self.eng.server.send(['logout', uid])
         del self.conn2usr[conn]
         info('lost connection %s (%s)' % (conn, uid))
+        self.clean()
         self.log_users()
         self.log_rooms()
 
@@ -287,6 +287,7 @@ class YorgServerLogic(GameLogic):
             self.eng.server.send(['presence_unavailable_room', usr.uid, room_name], self.usr2conn[_usr.uid])
         self.eng.server.send(['is_playing', usr.uid, 0])
         info('user %s left the room %s' % (usr.uid, room_name))
+        self.clean()
         self.log_rooms()
 
     def leave_rooms(self, uid):
@@ -544,11 +545,13 @@ class YorgServerLogic(GameLogic):
 
     def is_supporter(self, name): return JID(name).bare in self.supp_mgr.list()
 
-    def clean(self, task):
+    def clean(self):
         for room in self.rooms[:]:
+            for usr in room.users[:]:
+                if usr not in self.conn2usr.values():
+                    room.users.remove(usr)
             if room.is_empty:
                 self.rooms.remove(room)
-        return task.again
 
 
 class YorgServer(Game):
