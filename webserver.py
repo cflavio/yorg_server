@@ -117,7 +117,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
         if filename == '/reset_ok.html':
             db.reset(args['uid'], args['pwd'])
             return resetok_page
-        if filename == '/index.html': return emptypage
+        if filename in ['/', '/index.html']: return emptypage
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer): pass
