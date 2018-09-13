@@ -168,11 +168,14 @@ class YorgServerLogic(GameLogic):
         info('new connection %s' % conn)
 
     def on_disconnected(self, conn):
-        uid = self.conn2usr[conn].uid
-        self.leave_rooms(uid)
-        self.eng.server.send(['logout', uid])
-        del self.conn2usr[conn]
-        info('lost connection %s (%s)' % (conn, uid))
+        if conn in self.conn2usr:  # the user is logged in
+            uid = self.conn2usr[conn].uid
+            self.leave_rooms(uid)
+            self.eng.server.send(['logout', uid])
+            del self.conn2usr[conn]
+            info('lost connection %s (%s)' % (conn, uid))
+        else:
+            info('lost connection %s' % conn)
         self.clean()
         self.log_users()
         self.log_rooms()
