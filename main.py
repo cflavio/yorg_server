@@ -10,7 +10,7 @@ from smtplib import SMTP
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from argparse import ArgumentParser
-from logging import basicConfig, DEBUG, INFO, getLogger, info, debug
+from logging import basicConfig, DEBUG, INFO, getLogger, info, debug, error
 from logging.handlers import TimedRotatingFileHandler
 from random import choice, randint
 from dbfacade import DBFacade
@@ -579,7 +579,8 @@ if __name__ == '__main__':
     try:
         yorg_srv.run()
     except Exception as e:
-        import traceback; traceback.print_exc()
-        with open('logs/yorg_server.log', 'a') as f:
-            import traceback; traceback.print_exc(file=f)
+        #import traceback; traceback.print_exc()
+        #with open('logs/yorg_server.log', 'a') as f:
+        #    import traceback; traceback.print_exc(file=f)
+        error('Error', exc_info=True)
         yorg_srv.kill()
