@@ -119,6 +119,10 @@ class SimpleHandler(BaseHTTPRequestHandler):
             return resetok_page
         if filename in ['/', '/index.html']: return emptypage
 
+    def log_message(self, format, *args):
+        pass  # otherwise the backgrounded process prints stuff in the output
+              # in place of stdout and the server outputs a 502 error
+
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer): pass
 
