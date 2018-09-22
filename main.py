@@ -38,7 +38,8 @@ args = parser.parse_args()
 
 if not exists('logs'): mkdir('logs')
 log_level = DEBUG if args.verbose else INFO
-basicConfig(level=log_level, format='%(levelname)-8s %(message)s')
+basicConfig(level=log_level, format='%(asctime)s%(msecs)03d%(levelname).1s %(message)s',
+                              datefmt='%y%m%d%H%M%S')
 handler = TimedRotatingFileHandler('logs/yorg_server.log', 'midnight')
 handler.suffix = '%Y%m%d'
 getLogger().addHandler(handler)
