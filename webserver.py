@@ -3,7 +3,7 @@ from SocketServer import ThreadingMixIn
 from os.path import exists
 from os import mkdir
 from urlparse import urlparse, parse_qs
-from logging import basicConfig, DEBUG, getLogger, info, debug
+from logging import basicConfig, DEBUG, getLogger, info, debug, Formatter
 from logging.handlers import TimedRotatingFileHandler
 from dbfacade import DBFacade
 
@@ -72,6 +72,9 @@ if not exists('logs'): mkdir('logs')
 basicConfig(level=DEBUG, format='%(levelname)-8s %(message)s')
 handler = TimedRotatingFileHandler('logs/yorg_server_web.log', 'midnight')
 handler.suffix = '%Y%m%d'
+formatter = Formatter('%(asctime)s%(msecs)03d%(levelname).1s %(message)s',
+                      datefmt='%y%m%d%H%M%S')
+handler.setFormatter(formatter)
 getLogger().addHandler(handler)
 
 

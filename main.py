@@ -10,7 +10,7 @@ from smtplib import SMTP
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from argparse import ArgumentParser
-from logging import basicConfig, DEBUG, INFO, getLogger, info, debug, error
+from logging import basicConfig, DEBUG, INFO, getLogger, info, debug, error, Formatter
 from logging.handlers import TimedRotatingFileHandler
 from random import choice, randint
 from dbfacade import DBFacade
@@ -42,6 +42,9 @@ basicConfig(level=log_level, format='%(asctime)s%(msecs)03d%(levelname).1s %(mes
                               datefmt='%y%m%d%H%M%S')
 handler = TimedRotatingFileHandler('logs/yorg_server.log', 'midnight')
 handler.suffix = '%Y%m%d'
+formatter = Formatter('%(asctime)s%(msecs)03d%(levelname).1s %(message)s',
+                      datefmt='%y%m%d%H%M%S')
+handler.setFormatter(formatter)
 getLogger().addHandler(handler)
 
 
