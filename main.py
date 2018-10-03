@@ -207,7 +207,7 @@ class YorgServerLogic(GameLogic):
         elif uid not in self.user_names(): ret_val = 'unregistered_nick'
         elif not self.db.login(uid, pwd): ret_val = 'wrong_pwd'
         if ret_val:
-            info('login result: ' + ret_val)
+            info('login result for user %s: %s' % (uid, ret_val))
             return ret_val
         usr = User(uid, self.db.is_supporter(uid))
         self.conn2usr[sender] = usr
