@@ -31,13 +31,13 @@ class User(object):
 
 parser = ArgumentParser()
 parser.add_argument('--port', type=int, default=0)
-parser.add_argument('--verbose', action='store_true')
+parser.add_argument('--noverbose', action='store_true')
 parser.add_argument('--spam', action='store_true')
 args = parser.parse_args()
 
 
 if not exists('logs'): mkdir('logs')
-log_level = DEBUG if args.verbose else INFO
+log_level = INFO if args.noverbose else DEBUG
 basicConfig(level=log_level, format='%(asctime)s%(msecs)03d%(levelname).1s %(message)s',
                               datefmt='%y%m%d%H%M%S')
 handler = TimedRotatingFileHandler('logs/yorg_server.log', 'midnight')
@@ -473,9 +473,13 @@ class YorgServerLogic(GameLogic):
 
     def find_rooms_with_user(self, uid, state=None):
         rooms = []
+        debug('looking  for user %s, state %s' % (uid, state))
+        if not args.noverbose: self.log_rooms()
         for room in self.rooms:
+            debug('room %s: state: %s, users: %s' % (room.name, room.state, room.users_uid))
             if state is not None and room.state != state: continue
             if uid in room.users_uid: rooms += [room]
+        debug('found rooms: %s' % rooms)
         return rooms
 
     @property
