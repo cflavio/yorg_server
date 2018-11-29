@@ -1,7 +1,6 @@
 from panda3d.core import loadPrcFileData
 loadPrcFileData('', 'window-type none')
 loadPrcFileData('', 'audio-library-name null')
-import sys
 from os.path import exists
 from os import mkdir
 from string import ascii_letters, digits
@@ -10,9 +9,10 @@ from smtplib import SMTP
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from argparse import ArgumentParser
-from logging import basicConfig, DEBUG, INFO, getLogger, info, debug, error, Formatter
+from logging import basicConfig, DEBUG, INFO, getLogger, info, debug, error, \
+    Formatter
 from logging.handlers import TimedRotatingFileHandler
-from random import choice, randint
+from random import choice
 from dbfacade import DBFacade
 from yyagl.game import Game, GameLogic
 from yyagl.engine.configuration import Cfg, GuiCfg, ProfilingCfg, LangCfg, \
@@ -20,6 +20,7 @@ from yyagl.engine.configuration import Cfg, GuiCfg, ProfilingCfg, LangCfg, \
 
 
 start, sel_drivers, race = range(3)
+
 
 class User(object):
 
@@ -38,8 +39,9 @@ args = parser.parse_args()
 
 if not exists('logs'): mkdir('logs')
 log_level = INFO if args.noverbose else DEBUG
-basicConfig(level=log_level, format='%(asctime)s%(msecs)03d%(levelname).1s %(message)s',
-                              datefmt='%y%m%d%H%M%S')
+basicConfig(level=log_level,
+            format='%(asctime)s%(msecs)03d%(levelname).1s %(message)s',
+            datefmt='%y%m%d%H%M%S')
 handler = TimedRotatingFileHandler('logs/yorg_server.log', 'midnight')
 handler.suffix = '%Y%m%d'
 formatter = Formatter('%(asctime)s%(msecs)03d%(levelname).1s %(message)s',
@@ -51,9 +53,9 @@ getLogger().addHandler(handler)
 mail_content = \
     'Hi! Thank you for subscribing Yorg!\n\nIn order to activate your ' + \
     'account, you have to click the following link:\n\n' + \
-    'http://yorg.ya2tech.it/activate.html?uid={uid}&activation_code={activation_code}' + \
-    '\n\nAfter that, you can login to your account. Thank you so much!\n\n' + \
-    "Yorg's team"
+    'http://yorg.ya2tech.it/activate.html?uid={uid}&activation_code=' + \
+    '{activation_code}\n\nAfter that, you can login to your account. Thank ' + \
+    "you so much!\n\nYorg's team"
 
 
 mail_reset_content = \
@@ -71,7 +73,7 @@ class MailSender(object):
     def connect(self):
         self.server = SMTP('mail.ya2.it', 2525)
         self.server.starttls()
-        with open('pwd.txt') as f: pwd = f.read().strip()
+        with open('pwd.txt') as pwdfile: pwd = pwdfile.read().strip()
         self.server.login('noreply@ya2.it', pwd)
         debug('connected to the smtp server')
 
@@ -123,7 +125,8 @@ class Room(object):
 
     def rm_usr(self, usr):
         if usr in self.users: self.users.remove(usr)
-        else: debug('user %s already removed' % usr.uid)  # it may happen on user's removal
+        else: debug('user %s already removed' % usr.uid)
+        # it may happen on user's removal
 
     @property
     def users_uid(self): return [usr.uid for usr in self.users]
@@ -168,8 +171,8 @@ class YorgServerLogic(GameLogic):
             self.evaluate_starting_drv(room)
         return task.cont
 
-    def on_connected(self, conn):
-        info('new connection %s' % conn)
+    @staticmethod
+    def on_connected(conn): info('new connection %s' % conn)
 
     def on_disconnected(self, conn):
         if conn in self.conn2usr:  # the user is logged in
@@ -231,7 +234,8 @@ class YorgServerLogic(GameLogic):
         self.mail_sender.send_mail_reset(uid, email, reset_code)
         return 'ok'
 
-    def __rnd_seq(self, length):
+    @staticmethod
+    def __rnd_seq(length):
         return ''.join(choice(ascii_letters + digits) for i in range(length))
 
     def get_salt(self, uid, sender):
@@ -239,10 +243,12 @@ class YorgServerLogic(GameLogic):
         if users_id: return users_id[0][2]
         return self.__rnd_seq(8)
 
-    def valid_nick(self, nick):
+    @staticmethod
+    def valid_nick(nick):
         return all(char in ascii_letters + digits for char in nick)
 
-    def valid_email(self, email):
+    @staticmethod
+    def valid_email(email):
         return match(r'[^@]+@[^@]+\.[^@]+', email)
 
     def user_names(self):
@@ -261,11 +267,15 @@ class YorgServerLogic(GameLogic):
         for room in self.rooms:
             users = ', '.join([usr.uid for usr in room.users])
             track_str = '; %s' % room.curr_track if room.curr_track else ''
-            state2str = {start: 'start', sel_drivers: 'sel_drivers', race: 'race'}
+            state2str = {start: 'start', sel_drivers: 'sel_drivers',
+                         race: 'race'}
             state_str = '(%s%s)' % (state2str[room.state], track_str)
-            drv = lambda uid: ':%s' % room.drv_mapping[uid] if uid in room.drv_mapping else ''
-            cars = ', '.join(['%s->%s%s' % (a, b, drv(a)) for a, b in room.car_mapping.items()])
-            rooms_str += ['%s %s: %s [%s]' % (room.name, state_str, users, cars)]
+            drv = lambda uid: ':%s' % room.drv_mapping[uid] \
+                if uid in room.drv_mapping else ''
+            cars = ', '.join(['%s->%s%s' %
+                (a, b, drv(a)) for a, b in room.car_mapping.items()])
+            rooms_str += ['%s %s: %s [%s]' %
+                          (room.name, state_str, users, cars)]
         msg += '\n'.join(rooms_str) + '}'
         info(msg)
 
@@ -276,8 +286,12 @@ class YorgServerLogic(GameLogic):
         room = [room for room in self.rooms if room.name == room_name][0]
         for _usr in room.users:
             debug('send presence_available_room %s to %s' % (usr.uid, _usr.uid))
-            self.eng.server.send(['presence_available_room', usr.uid, room_name], self.usr2conn[_usr.uid])
-            self.eng.server.send(['presence_available_room', _usr.uid, room_name], self.usr2conn[usr.uid])
+            self.eng.server.send(
+                ['presence_available_room', usr.uid, room_name],
+                self.usr2conn[_usr.uid])
+            self.eng.server.send(
+                ['presence_available_room', _usr.uid, room_name],
+                self.usr2conn[usr.uid])
         room.add_usr(usr)
         self.eng.server.send(['is_playing', usr.uid, 1])
         info('user %s joined the room %s' % (usr.uid, room_name))
@@ -290,8 +304,11 @@ class YorgServerLogic(GameLogic):
         room = [room for room in self.rooms if room.name == room_name][0]
         room.rm_usr(usr)
         for _usr in room.users:
-            debug('send presence_unavailable_room %s to %s' % (usr.uid, _usr.uid))
-            self.eng.server.send(['presence_unavailable_room', usr.uid, room_name], self.usr2conn[_usr.uid])
+            debug('send presence_unavailable_room %s to %s' %
+                  (usr.uid, _usr.uid))
+            self.eng.server.send(
+                ['presence_unavailable_room', usr.uid, room_name],
+                self.usr2conn[_usr.uid])
         self.eng.server.send(['is_playing', usr.uid, 0])
         info('user %s left the room %s' % (usr.uid, room_name))
         self.clean()
@@ -309,35 +326,49 @@ class YorgServerLogic(GameLogic):
         if car not in room.car_mapping.values():
             if uid in room.car_mapping:
                 for usr in room.users:
-                    debug('car deselection: %s has deselected %s to %s' % (uid, room.car_mapping[uid], usr.uid))
-                    self.eng.server.send(['car_deselection', room.car_mapping[uid]], self.usr2conn[usr.uid])
-                info('%s has deselected the car %s for the room %s' % (uid, room.car_mapping[uid], room.name))
+                    debug('car deselection: %s has deselected %s to %s' %
+                          (uid, room.car_mapping[uid], usr.uid))
+                    self.eng.server.send(
+                        ['car_deselection', room.car_mapping[uid]],
+                        self.usr2conn[usr.uid])
+                info('%s has deselected the car %s for the room %s' %
+                    (uid, room.car_mapping[uid], room.name))
             room.car_mapping[uid] = car
             for usr in room.users:
-                debug('car selection: %s has selected %s to %s' % (uid, car, usr.uid))
-                self.eng.server.send(['car_selection', car, uid], self.usr2conn[usr.uid])
-            info('%s has selected the car %s for the room %s' % (uid, car, room.name))
+                debug('car selection: %s has selected %s to %s' %
+                      (uid, car, usr.uid))
+                self.eng.server.send(['car_selection', car, uid],
+                                     self.usr2conn[usr.uid])
+            info('%s has selected the car %s for the room %s' %
+                 (uid, car, room.name))
             self.log_rooms()
             return 'ok'
-        else:
-            return 'ko'
+        else: return 'ko'
 
     def drv_request(self, car, i, speed, adherence, stability, sender):
         uid = self.conn2usr[sender].uid
-        debug('drv request: %s %s %s %s %s %s' % (uid, car, i, speed, adherence, stability))
+        debug('drv request: %s %s %s %s %s %s' %
+              (uid, car, i, speed, adherence, stability))
         room = self.find_rooms_with_user(uid, 1)[0]
         if i not in room.drv_mapping.values():
             if uid in room.drv_mapping:
                 for usr in room.users:
-                    debug('driver deselection: %s has deselected %s to %s' % (uid, room.drv_mapping[uid], usr.uid))
-                    self.eng.server.send(['drv_deselection', room.drv_mapping[uid]], self.usr2conn[usr.uid])
-                info('%s has deselected the driver %s for the room %s' % (uid, room.drv_mapping[uid], room.name))
+                    debug('driver deselection: %s has deselected %s to %s' %
+                          (uid, room.drv_mapping[uid], usr.uid))
+                    self.eng.server.send(
+                        ['drv_deselection', room.drv_mapping[uid]],
+                        self.usr2conn[usr.uid])
+                info('%s has deselected the driver %s for the room %s' %
+                     (uid, room.drv_mapping[uid], room.name))
             room.drv_mapping[uid] = i
             room.drivers[uid] = [i, speed, adherence, stability]
             for usr in room.users:
-                debug('driver selection: %s has selected %s to %s' % (uid, i, usr.uid))
-                self.eng.server.send(['drv_selection', i, uid], self.usr2conn[usr.uid])
-            info('%s has selected the driver %s for the room %s' % (uid, i, room.name))
+                debug('driver selection: %s has selected %s to %s' %
+                      (uid, i, usr.uid))
+                self.eng.server.send(['drv_selection', i, uid],
+                                     self.usr2conn[usr.uid])
+            info('%s has selected the driver %s for the room %s' %
+                 (uid, i, room.name))
             self.log_rooms()
             return 'ok'
         else:
@@ -350,7 +381,8 @@ class YorgServerLogic(GameLogic):
         if rm_usr not in rcv_usr: rcv_usr += [rm_usr]
         for _usr in rcv_usr:
             debug('send rm_usr_from_match %s to %s' % (usr_uid, _usr.uid))
-            self.eng.server.send(['rm_usr_from_match', usr_uid, room_name], self.usr2conn[_usr.uid])
+            self.eng.server.send(['rm_usr_from_match', usr_uid, room_name],
+                                 self.usr2conn[_usr.uid])
         usr = None
         for _usr in room.users:
             if usr_uid == _usr.uid:
@@ -359,7 +391,8 @@ class YorgServerLogic(GameLogic):
         self.eng.server.send(['is_playing', usr_uid, 0])
 
     def evaluate_starting(self, room):
-        if room.state != start or not all(uid in room.car_mapping for uid in room.users_uid): return
+        if room.state != start or not \
+            all(uid in room.car_mapping for uid in room.users_uid): return
         room.state = sel_drivers
         packet = ['start_drivers']
         for uid, car in room.car_mapping.items():
@@ -369,23 +402,27 @@ class YorgServerLogic(GameLogic):
             self.eng.server.send(packet, self.usr2conn[usr.uid])
 
     def evaluate_starting_drv(self, room):
-        if room.state != sel_drivers or not all(uid in room.drv_mapping for uid in room.users_uid): return
+        if room.state != sel_drivers or not \
+            all(uid in room.drv_mapping for uid in room.users_uid): return
         room.state = race
         packet = ['start_race', len(room.drv_mapping)]
         for uid, drv in room.drv_mapping.items():
-            packet += [room.drivers[uid][0]] + [room.car_mapping[uid]] + [uid] + room.drivers[uid][1:]
+            packet += [room.drivers[uid][0]] + [room.car_mapping[uid]] + \
+                [uid] + room.drivers[uid][1:]
         for usr in room.users:
             debug('send: %s to %s' % (packet, usr.uid))
             self.eng.server.send(packet, self.usr2conn[usr.uid])
 
     def log_users(self):
         is_playing = lambda usr: ' (playing)' if usr.is_playing else ''
-        users_str = ', '.join(['%s%s' % (usr.uid, is_playing(usr)) for usr in self.current_users])
+        users_str = ', '.join(['%s%s' % (usr.uid, is_playing(usr))
+                               for usr in self.current_users])
         info('users: %s' % users_str)
 
     def get_users(self, sender):
         self.log_users()
-        return [[usr.uid, usr.is_supporter, usr.is_playing] for usr in self.current_users]
+        return [[usr.uid, usr.is_supporter, usr.is_playing]
+                for usr in self.current_users]
 
     def emails(self):
         users, activations, reset = self.db.list()
@@ -446,7 +483,8 @@ class YorgServerLogic(GameLogic):
                 room.srv_usr in self.usr2conn:
             for usr in room.users:
                 debug('start countdown: %s' % usr.uid)
-                self.eng.server.send(['start_countdown'], self.usr2conn[usr.uid])
+                self.eng.server.send(['start_countdown'],
+                                     self.usr2conn[usr.uid])
 
     def on_declined(self, from_, to):
         self.eng.server.send(['declined', from_], self.usr2conn[to])
@@ -459,7 +497,8 @@ class YorgServerLogic(GameLogic):
         self.find_usr(uid).is_playing = 0
         self.eng.server.send(['is_playing', uid, 0])
         info('end race player: %s' % uid)
-        self.eng.server.send(['end_race_player', uid], self.usr2conn[room.srv_usr])
+        self.eng.server.send(['end_race_player', uid],
+                             self.usr2conn[room.srv_usr])
 
     def on_end_race(self, uid):
         room = self.find_rooms_with_user(uid, 2)[0]
@@ -476,7 +515,8 @@ class YorgServerLogic(GameLogic):
         debug('looking  for user %s, state %s' % (uid, state))
         if not args.noverbose: self.log_rooms()
         for room in self.rooms:
-            debug('room %s: state: %s, users: %s' % (room.name, room.state, room.users_uid))
+            debug('room %s: state: %s, users: %s' %
+                  (room.name, room.state, room.users_uid))
             if state is not None and room.state != state: continue
             if uid in room.users_uid: rooms += [room]
         debug('found rooms: %s' % rooms)
@@ -492,14 +532,17 @@ class YorgServerLogic(GameLogic):
     def on_msg_room(self, from_, to, txt):
         room = self.find_room(to)
         for usr in room.users:
-            self.eng.server.send(['msg_room', from_, to, txt], self.usr2conn[usr.uid])
+            self.eng.server.send(['msg_room', from_, to, txt],
+                                 self.usr2conn[usr.uid])
 
     def on_track_selected(self, track, room):
         room = self.find_room(room)
         room.curr_track = track
         for usr in room.users:
-            self.eng.server.send(['track_selected', track], self.usr2conn[usr.uid])
-        info('%s has selected the track %s for the room %s' % (room.srv_usr, track, room.name))
+            self.eng.server.send(['track_selected', track],
+                                 self.usr2conn[usr.uid])
+        info('%s has selected the track %s for the room %s' %
+             (room.srv_usr, track, room.name))
         self.log_rooms()
 
     def find_usr(self, uid):
@@ -512,19 +555,23 @@ class YorgServerLogic(GameLogic):
         self.eng.server.send(['is_playing', to, 1])
         from_ = self.conn2usr[sender].uid
         info('%s invited %s in the room %s' % (from_, to, room_name))
-        self.eng.server.send(['invite_chat', from_, to, room_name], self.usr2conn[to])
+        self.eng.server.send(['invite_chat', from_, to, room_name],
+                             self.usr2conn[to])
         return 'ok'
 
-    def process_connection(self, client_address):
+    @staticmethod
+    def process_connection(client_address):
         info('connection from %s' % client_address)
 
     def on_presence_available(self, msg):
         pass
-        # info('presence available before: %s %s' % (msg['from'], self.jid2usr.keys()))
+        # info('presence available before: %s %s' %
+        #      (msg['from'], self.jid2usr.keys()))
         # if msg['from'].bare == self.boundjid.bare: return
         # name = msg['from']
         # for key in self.jid2usr.keys()[:]:
-        #     if msg['from'].bare == JID(key).bare and str(msg['from']) != str(key):
+        #     if msg['from'].bare == JID(key).bare and \
+        #             str(msg['from']) != str(key):
         #         del self.jid2usr[key]
         # if name in self.jid2usr: return
         # usr = User(name, self.is_supporter(name), self.is_playing(name))
@@ -539,24 +586,24 @@ class YorgServerLogic(GameLogic):
 
     def on_list_users(self, msg):
         pass
-        # supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
-        # play_pref = lambda name: '1' if self.is_playing(name) else '0'
-        # names = self.jid2usr.keys()
-        # names = [
-        #     ''.join([supp_pref(name) + play_pref(name) + str(name)])
-        #     for name in names]
-        # _from = str(msg['from'])
-        # if _from not in self.jid2usr:
-        #     usr = User(_from, self.is_supporter(_from), self.is_playing(_from))
-        #     self.jid2usr[_from] = usr
-        # self.send_message(
-        #     mfrom='ya2_yorg@jabb3r.org',
-        #     mto=msg['from'],
-        #     mtype='ya2_yorg',
-        #     msubject='list_users',
-        #     mbody='\n'.join(names))
+        #supp_pref = lambda name: '1' if self.is_supporter(name) else '0'
+        #play_pref = lambda name: '1' if self.is_playing(name) else '0'
+        #names = self.jid2usr.keys()
+        #names = [
+        #    ''.join([supp_pref(name) + play_pref(name) + str(name)])
+        #    for name in names]
+        #_from = str(msg['from'])
+        #if _from not in self.jid2usr:
+        #    usr = User(_from, self.is_supporter(_from), self.is_playing(_from))
+        #    self.jid2usr[_from] = usr
+        #self.send_message(
+        #    mfrom='ya2_yorg@jabb3r.org',
+        #    mto=msg['from'],
+        #    mtype='ya2_yorg',
+        #    msubject='list_users',
+        #    mbody='\n'.join(names))
 
-    def is_supporter(self, name): return JID(name).bare in self.supp_mgr.list()
+    #def is_supporter(self, name): return JID(name).bare in self.supp_mgr.list()
 
     def clean(self):
         for room in self.rooms[:]:
@@ -584,9 +631,8 @@ class YorgServer(Game):
 
 if __name__ == '__main__':
     yorg_srv = YorgServer()
-    try:
-        yorg_srv.run()
-    except Exception as e:
+    try: yorg_srv.run()
+    except Exception as exc:
         #import traceback; traceback.print_exc()
         #with open('logs/yorg_server.log', 'a') as f:
         #    import traceback; traceback.print_exc(file=f)

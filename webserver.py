@@ -3,7 +3,7 @@ from SocketServer import ThreadingMixIn
 from os.path import exists
 from os import mkdir
 from urlparse import urlparse, parse_qs
-from logging import basicConfig, DEBUG, getLogger, info, debug, Formatter
+from logging import basicConfig, DEBUG, getLogger, Formatter
 from logging.handlers import TimedRotatingFileHandler
 from dbfacade import DBFacade
 
@@ -24,7 +24,8 @@ actpage = '''\
 <body>
 <h1>Yorg</h1>
 <p>Hi <em>{uid}</em>!</p>
-<p>Your account has been activated. Now you can use it for playing <em>Yorg</em> online!</p>
+<p>Your account has been activated.
+Now you can use it for playing <em>Yorg</em> online!</p>
 </body>
 </html>
 '''
@@ -62,7 +63,8 @@ resetok_page = '''\
 <html>
 <body>
 <h1>Yorg</h1>
-<p>Your password has been resetted. Now you can use it for playing <em>Yorg</em> online!</p>
+<p>Your password has been resetted.
+Now you can use it for playing <em>Yorg</em> online!</p>
 </body>
 </html>
 '''
@@ -105,7 +107,8 @@ class SimpleHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(page)
 
-    def page(self, filename, args):
+    @staticmethod
+    def page(filename, args):
         db = DBFacade()
         if filename == '/activate.html':
             args = dict(arg.split('=') for arg in args.split('&'))
@@ -122,7 +125,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
             return resetok_page
         if filename in ['/', '/index.html']: return emptypage
 
-    def log_message(self, format, *args):
+    def log_message(self, format_, *args):
         pass  # otherwise the backgrounded process prints stuff in the output
               # in place of stdout and the server outputs a 502 error
 
@@ -132,9 +135,8 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer): pass
 
 if __name__ == '__main__':
     server = ThreadedHTTPServer(('localhost', 9090), SimpleHandler)
-    try:
-        server.serve_forever()
-    except Exception as e:
+    try: server.serve_forever()
+    except Exception as exc:
         import traceback; traceback.print_exc()
         with open('logs/yorg_server_web.log', 'a') as f:
             import traceback; traceback.print_exc(file=f)
