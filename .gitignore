@@ -3,7 +3,7 @@
 *.pyc
 logs/
 yorg.db
-supporters.db
-pwd.txt
+*.db
+mail_pwd.txt
 built/
 .sconsign.dblite

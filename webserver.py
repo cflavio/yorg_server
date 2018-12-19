@@ -1,142 +1,114 @@
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
-from os.path import exists
 from os import mkdir
 from urlparse import urlparse, parse_qs
-from logging import basicConfig, DEBUG, getLogger, Formatter
-from logging.handlers import TimedRotatingFileHandler
-from dbfacade import DBFacade
+from traceback import print_exc
+from log import set_log
+from dbfrontend import DBFrontend
 
 
-emptypage = '''\
-<html>
-<body>
-<h1>Yorg</h1>
-<p>Hi! This is an auxiliary site for <em>Yorg</em>.</p>
-<p>Please go on <a href="http://www.ya2.it">our site</a> for more info.</p>
-</body>
-</html>
-'''
+emptypage = '''<p>Hi! This is an auxiliary site for <em>Yorg</em>.</p>
+<p>Please go on <a href="http://www.ya2.it">our site</a> for more info.</p>'''
 
 
-actpage = '''\
-<html>
-<body>
-<h1>Yorg</h1>
-<p>Hi <em>{uid}</em>!</p>
+activationpage = '''<p>Hi <em>{uid}</em>!</p>
 <p>Your account has been activated.
-Now you can use it for playing <em>Yorg</em> online!</p>
-</body>
-</html>
-'''
+Now you can use it for playing <em>Yorg</em> online!</p>'''
 
 
-resetpage_ok = '''\
-<html>
-<body>
-<h1>Yorg</h1>
-<p>Hi <em>{uid}</em>!</p>
+resetpage = '''<p>Hi <em>{uid}</em>!</p>
 <form action="reset_ok.html" method="post">
 Insert your new password:<br>
 <input type="password" name="pwd">
 <input type="hidden" name="uid" value="{uid}" />
-</form>
-</body>
-</html>
-'''
+</form>'''
 
 
-resetpage_ko = '''\
-<html>
-<body>
-<h1>Yorg</h1>
-<p>Hi <em>{uid}</em>!</p>
+resetpage_ok = '''<p>Your password has been resetted.
+Now you can use it for playing <em>Yorg</em> online!</p>'''
+
+
+resetpage_ko = '''<p>Hi <em>{uid}</em>!</p>
 <p>This reset request is invalid. Perhaps, it is too old or you've submitted
 other reset requests after this one or you've already resetted your password.
-Please retry.</p>
-</body>
-</html>
-'''
+Please retry.</p>'''
 
 
-resetok_page = '''\
-<html>
-<body>
-<h1>Yorg</h1>
-<p>Your password has been resetted.
-Now you can use it for playing <em>Yorg</em> online!</p>
-</body>
-</html>
-'''
+pre = '<html>\n<body>\n<h1>Yorg</h1>\n'
+post = '\n</body>\n</html>'
+def bld_page(page): return pre + page + post
+emptypage = bld_page(emptypage)
+activationpage = bld_page(activationpage)
+resetpage = bld_page(resetpage)
+resetpage_ok = bld_page(resetpage_ok)
+resetpage_ko = bld_page(resetpage_ko)
 
 
-if not exists('logs'): mkdir('logs')
-basicConfig(level=DEBUG, format='%(levelname)-8s %(message)s')
-handler = TimedRotatingFileHandler('logs/yorg_server_web.log', 'midnight')
-handler.suffix = '%Y%m%d'
-formatter = Formatter('%(asctime)s%(msecs)03d%(levelname).1s %(message)s',
-                      datefmt='%y%m%d%H%M%S')
-handler.setFormatter(formatter)
-getLogger().addHandler(handler)
+set_log('yorg_server_web')
 
 
-class SimpleHandler(BaseHTTPRequestHandler):
+class RequestHandler(BaseHTTPRequestHandler):
+
+    def __init__(self, request, client_address, server):
+        self.db = DBFrontend('yorg')
+        BaseHTTPRequestHandler.__init__(self, request, client_address, server)
 
     def do_GET(self):
         parsed_path = urlparse(self.path)
-        page = self.page(parsed_path.path, parsed_path.query)
+        page = self.bld_page(parsed_path.path, parsed_path.query)
         if not page:
             self.send_error(404)
             return
         self.send_response(200)
-        self.send_header("Content-Type", "text/html")
-        self.send_header("Content-Length", str(len(page)))
+        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-Length', str(len(page)))
         self.end_headers()
         self.wfile.write(page)
 
     def do_POST(self):
-        parsed_path = urlparse(self.path)
         if not self.rfile: return
         length = int(self.headers['Content-Length'])
         args = dict(parse_qs(self.rfile.read(length)))
         args = {key: val[0] for key, val in args.items()}
-        page = self.page(parsed_path.path, args)
+        page = self.bld_page(urlparse(self.path).path, args)
         self.send_response(200)
-        self.send_header("Content-Type", "text/html")
-        self.send_header("Content-Length", str(len(page)))
+        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-Length', str(len(page)))
         self.end_headers()
         self.wfile.write(page)
 
-    @staticmethod
-    def page(filename, args):
-        db = DBFacade()
-        if filename == '/activate.html':
-            args = dict(arg.split('=') for arg in args.split('&'))
-            db.activate(args['uid'], args['activation_code'])
-            return actpage.format(uid=args['uid'])
-        if filename == '/reset.html':
-            args = dict(arg.split('=') for arg in args.split('&'))
-            if db.is_valid_reset(args['uid'], args['reset_code']):
-                return resetpage_ok.format(uid=args['uid'])
-            else:
-                return resetpage_ko.format(uid=args['uid'])
-        if filename == '/reset_ok.html':
-            db.reset(args['uid'], args['pwd'])
-            return resetok_page
+    def bld_page(self, filename, args):
         if filename in ['/', '/index.html']: return emptypage
+        mth = '_' + filename[1:-5]
+        if filename[0] + filename[-5:] == '/.html' and hasattr(self, mth):
+            return getattr(self, mth)(args)
 
-    def log_message(self, format_, *args):
-        pass  # otherwise the backgrounded process prints stuff in the output
-              # in place of stdout and the server outputs a 502 error
+    def _activate(self, args):
+        args = dict(arg.split('=') for arg in args.split('&'))
+        self.db.activate(args['uid'], args['activation_code'])
+        return activationpage.format(uid=args['uid'])
+
+    def _reset(self, args):
+        args = dict(arg.split('=') for arg in args.split('&'))
+        if self.db.valid_reset(args['uid'], args['reset_code']):
+            return resetpage.format(uid=args['uid'])
+        else: return resetpage_ko.format(uid=args['uid'])
+
+    def _reset_ok(self, args):
+        self.db.reset(args['uid'], args['pwd'])
+        return resetpage_ok
+
+    def log_message(self, format_, *args): pass
+    # otherwise the backgrounded process prints stuff in the output in place
+    # of stdout and the server outputs a 502 error
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer): pass
 
 
 if __name__ == '__main__':
-    server = ThreadedHTTPServer(('localhost', 9090), SimpleHandler)
+    server = ThreadedHTTPServer(('localhost', 9090), RequestHandler)
     try: server.serve_forever()
     except Exception as exc:
-        import traceback; traceback.print_exc()
-        with open('logs/yorg_server_web.log', 'a') as f:
-            import traceback; traceback.print_exc(file=f)
+        print_exc()
+        with open('logs/yorg_server_web.log', 'a') as f: print_exc(file=f)
