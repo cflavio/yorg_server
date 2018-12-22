@@ -46,7 +46,8 @@ class YorgServerLogic(GameLogic):
         mths = [
             self.register, self.login, self.reset, self.get_salt,
             self.get_users, self.join_room, self.leave_room, self.invite,
-            self.car_request, self.drv_request, self.rm_usr_from_match]
+            self.car_request, self.drv_request, self.rm_usr_from_match,
+            self.srv_version]
         map(lambda mth: self.eng.server.register_rpc(mth), mths)
         info('server started')
 
@@ -72,6 +73,8 @@ class YorgServerLogic(GameLogic):
         self.eng.server.send(['logout', uid])
         del self.conn2usr[conn]
         info('lost connection %s (%s)' % (conn, uid))
+
+    def srv_version(self, sender): return '0.10.0'
 
     def register(self, uid, pwd, salt, email, sender):
         debug('registering ' + uid)
