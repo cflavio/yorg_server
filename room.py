@@ -1,4 +1,4 @@
-from states import start, sel_drivers, race
+from states import waiting
 
 
 class Room(object):
@@ -12,7 +12,7 @@ class Room(object):
         self.uid2car = {}
         self.uid2drvidx = {}
         self.uid2props = {}  # uid: i, speed, adherence, stability
-        self.state = start
+        self.state = waiting
         self.track = ''
 
     def add_usr(self, usr): self.users += [usr]

@@ -16,7 +16,7 @@ from args import set_args
 from mail import Mail
 from user import User
 from room import Room
-from states import start, sel_drivers, race, statename
+from states import waiting, sel_track_cars, sel_drivers, race, statename
 
 
 args = [('--port', {'type': int, 'default': 0}),
@@ -47,7 +47,7 @@ class YorgServerLogic(GameLogic):
             self.register, self.login, self.reset, self.get_salt,
             self.get_users, self.join_room, self.leave_room, self.invite,
             self.car_request, self.drv_request, self.rm_usr_from_match,
-            self.srv_version]
+            self.srv_version, self.hosting]
         map(lambda mth: self.eng.server.register_rpc(mth), mths)
         info('server started')
 
@@ -168,6 +168,7 @@ class YorgServerLogic(GameLogic):
                 self.usr2conn[usr.uid])
         room.add_usr(usr)
         self.eng.server.send(['playing', usr.uid, 1])
+        self.eng.server.send(['add_hosting', usr.uid])
         info('user %s joined the room %s' % (usr.uid, room_name))
         self.log_rooms()
 
@@ -198,7 +199,7 @@ class YorgServerLogic(GameLogic):
     def car_request(self, car, sender):
         uid = self.conn2usr[sender].uid
         debug('car request: %s %s' % (uid, car))
-        room = self.find_room_with_user(uid, start)
+        room = self.find_room_with_user(uid, waiting)
         if car not in room.uid2car.values():
             self.__process_car_req(room, uid, car)
             return 'ok'
@@ -268,7 +269,7 @@ class YorgServerLogic(GameLogic):
 
     def evaluate_starting(self, room):
         all_chosen = all(uid in room.uid2car for uid in room.users_uid)
-        if room.state != start or not all_chosen: return
+        if room.state != sel_track_cars or not all_chosen: return
         room.state = sel_drivers
         packet = ['start_drivers']
         for uid, car in room.uid2car.items(): packet += [uid, car]
@@ -317,6 +318,8 @@ class YorgServerLogic(GameLogic):
             self.on_end_race_player(self.conn2usr[sender].uid)
         if data_lst[0] == 'end_race':
             self.on_end_race(self.conn2usr[sender].uid)
+        if data_lst[0] == 'room_start':
+            self.on_room_start(self.conn2usr[sender].uid)
 
     def on_client_ready(self, uid):
         room = self.find_rooms_with_user(uid, 2)[0]
@@ -436,6 +439,15 @@ class YorgServerLogic(GameLogic):
         for usr in room.users[:]:
             if usr not in self.conn2usr.values(): room.users.remove(usr)
         if room.empty: self.rooms.remove(room)
+
+    def hosting(self, sender):
+        return [room.name for room in self.rooms if room.state==waiting]
+
+    def on_room_start(sender):
+        uid = self.conn2usr[sender].uid
+        room = self.find_room_with_user(uid)
+        room.state = sel_track_cars
+        self.eng.server.send(['rm_hosting', uid])
 
 
 class YorgServer(Game):
