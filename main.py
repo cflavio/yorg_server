@@ -199,7 +199,7 @@ class YorgServerLogic(GameLogic):
     def car_request(self, car, sender):
         uid = self.conn2usr[sender].uid
         debug('car request: %s %s' % (uid, car))
-        room = self.find_room_with_user(uid, waiting)
+        room = self.find_room_with_user(uid, sel_track_cars)
         if car not in room.uid2car.values():
             self.__process_car_req(room, uid, car)
             return 'ok'
@@ -229,7 +229,7 @@ class YorgServerLogic(GameLogic):
         uid = self.conn2usr[sender].uid
         tmpl = 'drv request: %s %s %s %s %s %s'
         debug(tmpl % (uid, car, idx, speed, adherence, stability))
-        room = self.find_rooms_with_user(uid, 1)[0]
+        room = self.find_rooms_with_user(uid, sel_drivers)[0]
         if idx not in room.uid2drvidx.values():
             self.__process_drv_req(room, uid, idx, speed, adherence, stability)
             return 'ok'
@@ -322,7 +322,7 @@ class YorgServerLogic(GameLogic):
             self.on_room_start(self.conn2usr[sender].uid)
 
     def on_client_ready(self, uid):
-        room = self.find_rooms_with_user(uid, 2)[0]
+        room = self.find_rooms_with_user(uid, race)[0]
         if uid not in room.ready: room.ready += [uid]
         if not all(usr.uid in room.ready for usr in room.users): return
         for usr in room.users:
@@ -330,20 +330,20 @@ class YorgServerLogic(GameLogic):
             self.eng.server.send(['begin_race'], self.usr2conn[usr.uid])
 
     def on_player_info(self, data_lst):
-        room = self.find_rooms_with_user(data_lst[1], 2)[0]
+        room = self.find_rooms_with_user(data_lst[1], race)[0]
         if args.spam: debug('player_info to server: %s' % data_lst)
         if room.srv_usr not in self.usr2conn: return  # user has quit
         self.eng.server.send(data_lst, self.usr2conn[room.srv_usr])
 
     def on_game_packet(self, data_lst):
-        room = self.find_rooms_with_user(data_lst[1], 2)[0]
+        room = self.find_rooms_with_user(data_lst[1], race)[0]
         for usr in room.users:
             if usr.uid == room.srv_usr: continue
             if args.spam: debug('game_packet to %s: %s' % (usr.uid, data_lst))
             self.eng.server.send(data_lst, self.usr2conn[usr.uid])
 
     def on_client_at_countdown(self, uid):
-        room = self.find_rooms_with_user(uid, 2)[0]
+        room = self.find_rooms_with_user(uid, race)[0]
         if uid not in room.ready_cd: room.ready_cd += [uid]
         not_ready = not all(usr.uid in room.ready_cd for usr in room.users)
         not_srv_usr = room.srv_usr not in self.usr2conn
@@ -359,7 +359,7 @@ class YorgServerLogic(GameLogic):
         info("%s declined %s's invite" % (from_, to))
 
     def on_end_race_player(self, uid):
-        room = self.find_rooms_with_user(uid, 2)[0]
+        room = self.find_rooms_with_user(uid, race)[0]
         self.find_usr(uid).playing = 0
         self.eng.server.send(['playing', uid, 0])
         info('end race player: %s' % uid)
@@ -367,7 +367,7 @@ class YorgServerLogic(GameLogic):
                              self.usr2conn[room.srv_usr])
 
     def on_end_race(self, uid):
-        room = self.find_rooms_with_user(uid, 2)[0]
+        room = self.find_rooms_with_user(uid, race)[0]
         for usr in room.users:
             info('end race: %s' % usr.uid)
             self.eng.server.send(['end_race'], self.usr2conn[usr.uid])
@@ -408,6 +408,7 @@ class YorgServerLogic(GameLogic):
         room = self.find_room(room)
         room.track = track
         for usr in room.users:
+            debug('send %s to %s' % (track, usr.uid))
             self.eng.server.send(['track_selected', track],
                                  self.usr2conn[usr.uid])
         tmpl = '%s has selected the track %s for the room %s'
@@ -443,9 +444,9 @@ class YorgServerLogic(GameLogic):
     def hosting(self, sender):
         return [room.name for room in self.rooms if room.state==waiting]
 
-    def on_room_start(sender):
-        uid = self.conn2usr[sender].uid
+    def on_room_start(self, uid):
         room = self.find_room_with_user(uid)
+        debug('room %s start (%s)' % (room.name, uid))
         room.state = sel_track_cars
         self.eng.server.send(['rm_hosting', uid])
 
