@@ -157,6 +157,8 @@ class YorgServerLogic(GameLogic):
         usr = self.conn2usr[sender]
         if room_name not in [room.name for room in self.rooms]:
             self.rooms += [Room(room_name, usr.uid)]
+            self.eng.server.send(['update_hosting'])
+            debug('send update hosting (new room by %s)' % usr.uid)
         room = self.__room(room_name)
         for _usr in room.users:
             debug('send presence_available_room %s to %s' % (usr.uid, _usr.uid))
@@ -168,7 +170,6 @@ class YorgServerLogic(GameLogic):
                 self.usr2conn[usr.uid])
         room.add_usr(usr)
         self.eng.server.send(['playing', usr.uid, 1])
-        self.eng.server.send(['add_hosting', usr.uid])
         info('user %s joined the room %s' % (usr.uid, room_name))
         self.log_rooms()
 
@@ -187,6 +188,8 @@ class YorgServerLogic(GameLogic):
                 self.usr2conn[_usr.uid])
         self.eng.server.send(['playing', usr.uid, 0])
         info('user %s left the room %s' % (usr.uid, room_name))
+        if usr.uid == room.srv_usr and room.state == waiting:
+            self.eng.server.send(['update_hosting'])
         self.clean()
         self.log_rooms()
 
@@ -448,7 +451,7 @@ class YorgServerLogic(GameLogic):
         room = self.find_room_with_user(uid)
         debug('room %s start (%s)' % (room.name, uid))
         room.state = sel_track_cars
-        self.eng.server.send(['rm_hosting', uid])
+        self.eng.server.send(['update_hosting'])
 
 
 class YorgServer(Game):
