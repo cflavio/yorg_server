@@ -15,7 +15,7 @@ class DBApp(object):
     def _migrate_tables(self): pass
 
     def _sql(self, cmd, commit=False):
-        if type(cmd) in [str, unicode]: cmd = [cmd]
+        if type(cmd) == str: cmd = [cmd]
         debug('sql (commit: %s): %s' % (commit, cmd))
         self.cur.execute(*cmd)
         if commit: self.conn.commit()

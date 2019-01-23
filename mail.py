@@ -1,7 +1,7 @@
 from logging import info, debug
 from smtplib import SMTP
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEText import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 
 mail_activation = (

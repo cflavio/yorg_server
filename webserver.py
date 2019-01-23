@@ -1,7 +1,7 @@
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from SocketServer import ThreadingMixIn
+from http.server import BaseHTTPRequestHandler,HTTPServer
+from socketserver import ThreadingMixIn
 from os import mkdir
-from urlparse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs
 from traceback import print_exc
 from log import set_log
 from dbfrontend import DBFrontend

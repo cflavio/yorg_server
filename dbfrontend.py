@@ -56,9 +56,9 @@ class DBFrontend(DBApp):
     def list(self, table, _print=False):
         ret = self._sql('SELECT * from ' + table)
         if _print:
-            print table, ':'
+            print(table, ':')
             pprint(ret)
-            print '\n'
+            print('\n')
         Row = namedtuple(table + '_row', self.__column_names(table))
         return [Row(*row) for row in list(ret)]
 

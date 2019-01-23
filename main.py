@@ -41,14 +41,14 @@ class YorgServerLogic(GameLogic):
     def on_start(self):
         GameLogic.on_start(self)
         mths = [self.on_connected, self.on_disconnected]
-        map(lambda mth: self.eng.server.attach(mth), mths)
+        list(map(lambda mth: self.eng.server.attach(mth), mths))
         self.eng.server.start(self.process_msg_srv, self.process_connection)
         mths = [
             self.register, self.login, self.reset, self.get_salt,
             self.get_users, self.join_room, self.leave_room, self.invite,
             self.car_request, self.drv_request, self.rm_usr_from_match,
             self.srv_version, self.hosting]
-        map(lambda mth: self.eng.server.register_rpc(mth), mths)
+        list(map(lambda mth: self.eng.server.register_rpc(mth), mths))
         info('server started')
 
     def __on_frame(self, task):
@@ -396,7 +396,7 @@ class YorgServerLogic(GameLogic):
 
     @property
     def usr2conn(self):
-        return {usr.uid: conn for conn, usr in self.conn2usr.iteritems()}
+        return {usr.uid: conn for conn, usr in self.conn2usr.items()}
 
     def on_msg(self, from_, to, msg):
         self.eng.server.send(['msg', from_, to, msg], self.usr2conn[to])
@@ -437,7 +437,7 @@ class YorgServerLogic(GameLogic):
         info('connection from %s' % client_address)
 
     def clean(self):
-        map(self.__clean_room, self.rooms[:])
+        list(map(self.__clean_room, self.rooms[:]))
 
     def __clean_room(self, room):
         for usr in room.users[:]:
@@ -464,7 +464,7 @@ class YorgServer(Game):
         Game.__init__(self, init_lst, conf)
 
     def kill(self):
-        map(lambda obj: obj.destroy(), [self.eng.server, self.eng.client])
+        list(map(lambda obj: obj.destroy(), [self.eng.server, self.eng.client]))
         info('killed the server')
 
 
