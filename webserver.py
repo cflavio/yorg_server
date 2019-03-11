@@ -63,7 +63,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/html')
         self.send_header('Content-Length', str(len(page)))
         self.end_headers()
-        self.wfile.write(page)
+        self.wfile.write(page.encode())
 
     def do_POST(self):
         if not self.rfile: return
@@ -75,7 +75,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/html')
         self.send_header('Content-Length', str(len(page)))
         self.end_headers()
-        self.wfile.write(page)
+        self.wfile.write(page.encode())
 
     def bld_page(self, filename, args):
         if filename in ['/', '/index.html']: return emptypage
