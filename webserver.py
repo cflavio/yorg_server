@@ -95,7 +95,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         else: return resetpage_ko.format(uid=args['uid'])
 
     def _reset_ok(self, args):
-        self.db.reset(args['uid'], args['pwd'])
+        self.db.reset(args[b'uid'], args[b'pwd'])
         return resetpage_ok
 
     def log_message(self, format_, *args): pass

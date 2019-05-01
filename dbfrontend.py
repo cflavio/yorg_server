@@ -83,7 +83,7 @@ class DBFrontend(DBApp):
     def reset(self, uid, pwd):
         info('reset %s' % uid)
         salt = self.__rnd_str(8)
-        new_pwd = sha512(pwd + salt).hexdigest()
+        new_pwd = sha512((pwd.decode('utf-8') + salt).encode('utf-8')).hexdigest()
         query = 'UPDATE users SET pwd = "%s", salt = "%s" WHERE uid = "%s"'
         query = query % (new_pwd, salt, uid)
         self._sql(query, True)
