@@ -94,6 +94,10 @@ class DBFrontend(DBApp):
         query = 'SELECT * FROM users WHERE uid=? and email=?'
         return self._sql([query, (uid, email)])
 
+    def activated_user(self, uid):
+        query = 'SELECT * FROM activation WHERE uid=?'
+        return not self._sql([query, (uid,)])
+
     def valid_reset(self, uid, reset_code):
         query = 'SELECT * FROM reset WHERE uid=? and reset_code=?'
         return self._sql([query, (uid, reset_code)])
@@ -119,12 +123,14 @@ class DBFrontend(DBApp):
         self._sql('INSERT INTO reset VALUES (%s)' % vals, True)
 
     def login(self, uid, pwd):
+        if not self.activated_user(uid): return 'unactivated'
         query = 'SELECT * FROM users WHERE uid=? and pwd=?'
-        return bool(self._sql([query, (uid, pwd)]))
+        return 'ok' if self._sql([query, (uid, pwd)]) else 'wrong_pwd'
 
     def remove(self, uid):
         info('remove %s' % uid)
         self._sql(['DELETE FROM users WHERE uid=?', (uid,)], True)
+        self._sql(['DELETE FROM activation WHERE uid=?', (uid,)], True)
 
     def clean(self):
         query = ('SELECT users.uid, last_access FROM users INNER JOIN '

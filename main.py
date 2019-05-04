@@ -97,8 +97,8 @@ class YorgServerLogic(GameLogic):
         ret = ''
         if not self.valid_nick(uid): ret = 'invalid_nick'
         elif uid not in self.user_names(): ret = 'unregistered_nick'
-        elif not self.db.login(uid, pwd): ret = 'wrong_pwd'
-        if ret:
+        else: ret = self.db.login(uid, pwd)
+        if ret != 'ok':
             info('login result for user %s: %s' % (uid, ret))
             return ret
         usr = User(uid, self.db.supporter(uid))
@@ -141,7 +141,7 @@ class YorgServerLogic(GameLogic):
     def user_names(self): return [usr.uid for usr in self.db.list('users')]
 
     def log_rooms(self):
-        info('rooms: {\n'.join(map(self.__log_room, self.rooms)) + '}')
+        info('rooms: {' + '\n'.join(map(self.__log_room, self.rooms)) + '}')
 
     def __log_room(self, room):
         users = ', '.join([usr.uid for usr in room.users])
