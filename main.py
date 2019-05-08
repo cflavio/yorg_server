@@ -47,7 +47,7 @@ class YorgServerLogic(GameLogic):
             self.register, self.login, self.reset, self.get_salt,
             self.get_users, self.join_room, self.leave_room, self.invite,
             self.car_request, self.drv_request, self.rm_usr_from_match,
-            self.srv_version, self.hosting]
+            self.srv_version, self.hosting, self.leave_curr_room]
         list(map(lambda mth: self.eng.server.register_rpc(mth), mths))
         info('server started')
 
@@ -199,6 +199,9 @@ class YorgServerLogic(GameLogic):
         for room in self.find_rooms_with_user(uid):
             self.leave_room(room.name, conn)
 
+    def leave_curr_room(self, sender):
+        self.leave_rooms(self.conn2usr[sender].uid)
+
     def car_request(self, car, sender):
         uid = self.conn2usr[sender].uid
         debug('car request: %s %s' % (uid, car))
@@ -272,7 +275,9 @@ class YorgServerLogic(GameLogic):
 
     def evaluate_starting(self, room):
         all_chosen = all(uid in room.uid2car for uid in room.users_uid)
-        if room.state != sel_track_cars or not all_chosen: return
+        has_srv_usr = room.srv_usr in room.users_uid
+        if room.state != sel_track_cars or not all_chosen or not has_srv_usr:
+            return
         room.state = sel_drivers
         packet = ['start_drivers']
         for uid, car in room.uid2car.items(): packet += [uid, car]
@@ -282,7 +287,9 @@ class YorgServerLogic(GameLogic):
 
     def evaluate_starting_drv(self, room):
         all_chosen = all(uid in room.uid2drvidx for uid in room.users_uid)
-        if room.state != sel_drivers or not all_chosen: return
+        has_srv_usr = room.srv_usr in room.users_uid
+        if room.state != sel_drivers or not all_chosen or not has_srv_usr:
+            return
         room.state = race
         packet = ['start_race', len(room.uid2drvidx)]
         for uid, drv in room.uid2drvidx.items():
