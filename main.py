@@ -206,6 +206,7 @@ class YorgServerLogic(GameLogic):
         uid = self.conn2usr[sender].uid
         debug('car request: %s %s' % (uid, car))
         room = self.find_room_with_user(uid, sel_track_cars)
+        debug('found room with user %s: %s' % (uid, room))
         if car not in room.uid2car.values():
             self.__process_car_req(room, uid, car)
             return 'ok'
@@ -236,6 +237,7 @@ class YorgServerLogic(GameLogic):
         tmpl = 'drv request: %s %s %s %s %s %s'
         debug(tmpl % (uid, car, idx, speed, adherence, stability))
         room = self.find_rooms_with_user(uid, sel_drivers)[0]
+        debug('found room with user %s: %s' % (uid, room))
         if idx not in room.uid2drvidx.values():
             self.__process_drv_req(room, uid, idx, speed, adherence, stability)
             return 'ok'
@@ -391,14 +393,9 @@ class YorgServerLogic(GameLogic):
 
     def find_rooms_with_user(self, uid, state=None):
         rooms = []
-        debug('looking  for user %s, state %s' % (uid, state))
-        if not args.noverbose: self.log_rooms()
         for room in self.rooms:
-            tmpl = 'room %s: state: %s, users: %s'
-            debug(tmpl % (room.name, room.state, room.users_uid))
             if state is not None and room.state != state: continue
             if uid in room.users_uid: rooms += [room]
-        debug('found rooms: %s' % rooms)
         return rooms
 
     @property
