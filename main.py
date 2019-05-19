@@ -375,8 +375,9 @@ class YorgServerLogic(GameLogic):
         self.find_usr(uid).playing = 0
         self.eng.server.send(['playing', uid, 0])
         info('end race player: %s' % uid)
-        self.eng.server.send(['end_race_player', uid],
-                             self.usr2conn[room.srv_usr])
+        if room.srv_usr in room.users_uid:
+            self.eng.server.send(['end_race_player', uid],
+                                 self.usr2conn[room.srv_usr])
 
     def on_end_race(self, uid):
         room = self.find_rooms_with_user(uid, race)[0]
