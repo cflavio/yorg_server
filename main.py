@@ -188,10 +188,10 @@ class YorgServerLogic(GameLogic):
                 self.usr2conn[_usr.uid])
         self.eng.server.send(['playing', usr.uid, 0])
         info('user %s left the room %s' % (usr.uid, room_name))
-        if usr.uid == room.srv_usr and room.state == waiting:
-            self.eng.server.send(['update_hosting'])
         self.clean()
         self.log_rooms()
+        if usr.uid == room.srv_usr and room.state == waiting:
+            self.eng.server.send(['update_hosting'])
 
     def leave_rooms(self, uid):
         usr = [usr for usr in self.conn2usr.values() if usr.uid == uid][0]
@@ -450,7 +450,7 @@ class YorgServerLogic(GameLogic):
         if room.empty: self.rooms.remove(room)
 
     def hosting(self, sender):
-        return [room.name for room in self.rooms if room.state==waiting]
+        return [room.name for room in self.rooms if room.state==waiting and room.srv_usr in room.users_uid]
 
     def on_room_start(self, uid):
         room = self.find_room_with_user(uid)
