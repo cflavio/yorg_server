@@ -205,12 +205,16 @@ class YorgServerLogic(GameLogic):
     def car_request(self, car, sender):
         uid = self.conn2usr[sender].uid
         debug('car request: %s %s' % (uid, car))
-        room = self.find_room_with_user(uid, sel_track_cars)
-        debug('found room with user %s: %s' % (uid, room))
-        if car not in room.uid2car.values():
-            self.__process_car_req(room, uid, car)
-            return 'ok'
-        else: return 'ko'
+        try:
+            room = self.find_room_with_user(uid, sel_track_cars)
+            debug('found room with user %s: %s' % (uid, room))
+            if car not in room.uid2car.values():
+                self.__process_car_req(room, uid, car)
+                return 'ok'
+            else: return 'ko'
+        except IndexError:
+            # this may happen on users' double clicks
+            print('not found room with user %s in state sel_track_cars' % uid)
 
     def __process_car_req(self, room, uid, car):
         if uid in room.uid2car:
@@ -236,12 +240,16 @@ class YorgServerLogic(GameLogic):
         uid = self.conn2usr[sender].uid
         tmpl = 'drv request: %s %s %s %s %s %s'
         debug(tmpl % (uid, car, idx, speed, adherence, stability))
-        room = self.find_rooms_with_user(uid, sel_drivers)[0]
-        debug('found room with user %s: %s' % (uid, room))
-        if idx not in room.uid2drvidx.values():
-            self.__process_drv_req(room, uid, idx, speed, adherence, stability)
-            return 'ok'
-        else: return 'ko'
+        try:
+            room = self.find_rooms_with_user(uid, sel_drivers)[0]
+            debug('found room with user %s: %s' % (uid, room))
+            if idx not in room.uid2drvidx.values():
+                self.__process_drv_req(room, uid, idx, speed, adherence, stability)
+                return 'ok'
+            else: return 'ko'
+        except IndexError:
+            # this may happen on users' double clicks
+            print('not found room with user %s in state sel_track_cars' % uid)
 
     def __process_drv_req(self, room, uid, idx, speed, adherence, stability):
         if uid in room.uid2drvidx:
