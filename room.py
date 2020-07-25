@@ -28,3 +28,9 @@ class Room(object):
 
     @property
     def empty(self): return not self.users
+
+    def __repr__(self):
+        return 'room(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
+            self.name, self.srv_usr, self.users, self.ready,
+            self.ready_cd, self.uid2car, self.uid2drvidx,
+            self.uid2props, self.state, self.track)

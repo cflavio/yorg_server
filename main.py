@@ -472,11 +472,12 @@ class YorgServer(Game):
     def __init__(self):
         info('starting the server; using the port %s' % args.port)
         dev_cfg = DevCfg(port=args.port) if args.port else DevCfg()
-        init_lst = [[('logic', YorgServerLogic, [self])]]
         conf = Cfg(GuiCfg(), ProfilingCfg(), LangCfg(), CursorCfg(), dev_cfg)
-        Game.__init__(self, init_lst, conf)
+        Game.__init__(self, conf)
+        self.logic = YorgServerLogic(self)
 
     def kill(self):
+        self.logic.destroy()
         list(map(lambda obj: obj.destroy(), [self.eng.server, self.eng.client]))
         info('killed the server')
 
