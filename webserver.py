@@ -33,27 +33,7 @@ resetpage_ko = '''<p>Hi <em>{uid}</em>!</p>
 other reset requests after this one or you've already resetted your password.
 Please retry.</p>'''
 
-css = '''<head>
-<style>
-body {
-  background-color: #333333;
-  font: 400 16px Lato, 'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
-h1 {color: #ffdd00;}
-p {color: #dddddd;}
-a:link, a:visited {color: #ffdd00; text-decoration: none;}
-a:focus, a:active, a:hover {color: #ff9900; text-decoration: none;}
-ul { list-style: none; }
-ul li::before {
-  content: "\2022";
-  color: #dddddd;
-  display: inline-block;
-  width: 1em;
-  margin-left: -1em;
-}
-</style>
-</head>'''
-pre = '<html>\n%s\n<body>\n<h1>Yorg</h1>\n' % css
+pre = '<html><body>\n<h1>Yorg</h1>\n'
 post = '\n</body>\n</html>'
 def bld_page(page): return pre + page + post
 emptypage = bld_page(emptypage)
