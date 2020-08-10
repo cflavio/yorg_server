@@ -1,0 +1,8 @@
+{
+    "mail_server": "your.smtp.server",
+    "mail_port": 25,
+    "mail_address": "your@mail.address",
+    "mail_password": "your password",
+    "server": "http://your.web.server",
+    "port": 9099
+}

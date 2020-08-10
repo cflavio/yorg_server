@@ -5,6 +5,7 @@ from os.path import exists
 from os import mkdir
 from string import ascii_letters, digits
 from re import match
+from json import load
 from logging import info, debug, error
 from log import set_log
 from random import choice
@@ -19,8 +20,7 @@ from room import Room
 from states import waiting, sel_track_cars, sel_drivers, race, statename
 
 
-args = [('--port', {'type': int, 'default': 0}),
-        ('--noverbose', {'action': 'store_true'}),
+args = [('--noverbose', {'action': 'store_true'}),
         ('--spam', {'action': 'store_true'})]
 args = set_args(args)
 
@@ -470,8 +470,10 @@ class YorgServerLogic(GameLogic):
 class YorgServer(Game):
 
     def __init__(self):
-        info('starting the server; using the port %s' % args.port)
-        dev_cfg = DevCfg(port=args.port) if args.port else DevCfg()
+        with open('settings.json') as f_settings:
+            port = load(f_settings)['port']
+        info('starting the server; using the port %s' % port)
+        dev_cfg = DevCfg(port=port)
         conf = Cfg(GuiCfg(), ProfilingCfg(), LangCfg(), CursorCfg(), dev_cfg)
         Game.__init__(self, conf)
         self.logic = YorgServerLogic(self)
