@@ -21,7 +21,8 @@ from states import waiting, sel_track_cars, sel_drivers, race, statename
 
 
 args = [('--noverbose', {'action': 'store_true'}),
-        ('--spam', {'action': 'store_true'})]
+        ('--spam', {'action': 'store_true'}),
+        ('--port', {'type': int})]
 args = set_args(args)
 
 
@@ -74,7 +75,7 @@ class YorgServerLogic(GameLogic):
         del self.conn2usr[conn]
         info('lost connection %s (%s)' % (conn, uid))
 
-    def srv_version(self, sender): return '0.10.0'
+    def srv_version(self, sender): return '0.11.1'
 
     def register(self, uid, pwd, salt, email, sender):
         debug('registering ' + uid)
@@ -178,6 +179,9 @@ class YorgServerLogic(GameLogic):
 
     def leave_room(self, room_name, sender):
         usr = self.conn2usr[sender]
+        import pprint
+        pprint.pprint(room_name)
+        pprint.pprint(self.rooms)
         room = [room for room in self.rooms if room.name == room_name][0]
         room.rm_usr(usr)
         for _usr in room.users:
@@ -472,6 +476,8 @@ class YorgServer(Game):
     def __init__(self):
         with open('settings.json') as f_settings:
             port = load(f_settings)['port']
+        if args.port != None:
+            port = args.port
         info('starting the server; using the port %s' % port)
         dev_cfg = DevCfg(port=port)
         conf = Cfg(GuiCfg(), ProfilingCfg(), LangCfg(), CursorCfg(), dev_cfg)
