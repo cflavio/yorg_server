@@ -63,7 +63,7 @@ class YorgServerLogic(GameLogic):
 
     def on_disconnected(self, conn):
         if conn in self.conn2usr: self.__disconnect_usr(conn)  # usr is logged
-        else: info('lost connection %s' % conn)
+        else: info('lost connection %s' % id(conn))
         self.clean()
         self.log_users()
         self.log_rooms()
@@ -73,7 +73,7 @@ class YorgServerLogic(GameLogic):
         self.leave_rooms(uid)
         self.eng.server.send(['logout', uid])
         del self.conn2usr[conn]
-        info('lost connection %s (%s)' % (conn, uid))
+        info('lost connection %s (%s)' % (id(conn), uid))
 
     def srv_version(self, sender): return '0.11.1'
 
@@ -105,7 +105,7 @@ class YorgServerLogic(GameLogic):
         usr = User(uid, self.db.supporter(uid))
         self.conn2usr[sender] = usr
         self.eng.server.send(['login', uid, usr.supporter, usr.playing])
-        info('user %s logged in - %s' % (uid, sender))
+        info('user %s logged in - %s' % (uid, id(sender)))
         return 'ok'
 
     @property
@@ -155,7 +155,9 @@ class YorgServerLogic(GameLogic):
         return '%s %s: %s [%s]' % (room.name, state, users, cars)
 
     def join_room(self, room_name, sender):
+        info('join_room::sender: %s' % id(sender))
         usr = self.conn2usr[sender]
+        info('join_room::usr: %s' % usr.uid)
         if room_name not in [room.name for room in self.rooms]:
             self.rooms += [Room(room_name, usr.uid)]
             self.eng.server.send(['update_hosting'])
